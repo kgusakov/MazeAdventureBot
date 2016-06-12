@@ -1,5 +1,5 @@
-import akka.actor.{Stash, Actor}
-import akka.actor.Actor.Receive
+import akka.actor.{Actor, Stash}
+import com.maze.bot.telegram.api.{SendMessage, TelegramApiClient}
 
 import scala.util.Random
 
@@ -24,24 +24,33 @@ case class Cell(walls: Set[Wall], item: Item)
 
 case class Maze(cells: Array[Array[Cell]], players: Set[Player])
 
-case class Player(id: Long, position: (Int, Int))
+case class Player(id: Int, position: (Int, Int))
 
-case class Move(playerId: Long, direction: Direction)
-object Init
+case class Move(playerId: Int, direction: Direction)
+case class MoveResult(player: Player, item: Option[Item])
+case class Init(ids: Set[Int])
 
-class MazeActor(playersIds: Set[Long]) extends Actor with Stash {
+case class Game(playerIds: Set[Int]) {
+
+  val maze = generateMaze((10, 10), playerIds)
+
+  private def generateMaze(dimension: (Int, Int), playerIds: Set[Int]): Maze = {
+    val r = Random
+    Maze(
+      Array.ofDim(dimension._1, dimension._2),
+      playerIds.map(id => Player(id,
+        (r.nextInt(dimension._1), r.nextInt(dimension._2)))))
+  }
+}
+
+class MazeActor extends Actor with Stash {
 
   private var maze: Option[Maze] = None
-
-  @throws[Exception](classOf[Exception])
-  override def preStart() {
-    super.preStart()
-    self ! Init
-  }
+  private var players: Set[Player] = Set.empty
 
   override def receive: Receive = {
-    case Init =>
-      maze = Some(generateMaze((10, 10), playersIds))
+    case Init(ids) =>
+      maze = Some(generateMaze((10, 10), ids))
       context.become(active)
       unstashAll();
     case _ => stash()
@@ -49,22 +58,18 @@ class MazeActor(playersIds: Set[Long]) extends Actor with Stash {
 
   val active: Receive = {
     case Move(playerId, direction) => {
-      maze.map { m =>
-        m.players.find(p => p.id == playerId).foreach{ p =>
-          val pos = p.position
-          if (m.cells(pos._1)(pos._2).walls)
-        }
-      }
+      val actionResults = List("Wall", "Ok", "Chest")
+      actionResults(Random.nextInt(actionResults.size))
+      TelegramApiClient.sendMessage(SendMessage(playerId.chatId, actionResults(Random.nextInt(actionResults.size))))
     }
   }
+
+
+}
+
+class Game extends Actor {
+  override def receive: Actor.Receive = ???
 }
 
 
 
-def generateMaze(dimension: (Int, Int), playerIds: Set[Long]): Maze = {
-  val r = Random
-  Maze(
-    Array.ofDim(dimension._1, dimension._2),
-    playerIds.map(id => Player(id,
-                               (r.nextInt(dimension._1), r.nextInt(dimension._2)))))
-}
