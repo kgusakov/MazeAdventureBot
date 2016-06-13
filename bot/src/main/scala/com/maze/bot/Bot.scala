@@ -1,19 +1,20 @@
-package com.maza.bot
+package com.maze.bot
 
-import java.io.{FileNotFoundException, _}
+import java.io.{FileOutputStream, OutputStream, Reader}
 import java.util.Properties
 
-import akka.actor.Actor.Receive
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
-import com.maze.bot.telegram.api
-import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient, Update}
+import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient}
 import com.maze.bot.telegram.api.TelegramApiClient._
+import com.maze.game.{Directions, Game}
+import com.maze.game.Directions.Direction
+import com.maze.game.Items.{Chest, Exit}
 import com.typesafe.scalalogging.LazyLogging
 
+import scala.collection.immutable.SortedSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
-import scala.util.Success
 import scala.concurrent.duration._
 import scala.io.Source
 
@@ -26,6 +27,19 @@ object Bot extends App with LazyLogging  {
   val gameManager = actorSystem.actorOf(Props[GameManager])
 
   import scala.concurrent.ExecutionContext.Implicits.global
+
+  def toMove(input: String): Either[String, Direction] = {
+    val splitted = input.split(" ")
+    if (splitted.length == 2)
+      splitted(1) match {
+        case "up" => Right(Directions.Up)
+        case "down" => Right(Directions.Down)
+        case "right" => Right(Directions.Right)
+        case "left" => Right(Directions.Left)
+        case _ => Left("Wrong direction")
+      }
+    else Left("Wrong direction")
+  }
 
   while(true) {
     Await.result(TelegramApiClient.getUpdates(updateId), 1 minute) match {
@@ -41,6 +55,11 @@ object Bot extends App with LazyLogging  {
                   gameManager ! StartGame(chat.id, from.id)
                 case Message(_, from, chat, _, text, _) if text.startsWith("/end") =>
                   gameManager ! EndGame(chat.id, from.id)
+                case Message(_, from, chat, _, text, _) if text.startsWith("/move") =>
+                  toMove(text) match {
+                    case Left(errorMessage) => TelegramApiClient.sendMessage(SendMessage(chat.id, errorMessage))
+                    case Right(direction) => gameManager ! MoveAction(chat.id, from.id, direction)
+                  }
                 case message@Message(_, _, _, _, _, _) =>
                   logger.warn(message.toString)
               }
@@ -49,8 +68,8 @@ object Bot extends App with LazyLogging  {
             if (nextUpdateId >= updateId) {
               updateId = nextUpdateId + 1
               PropsStore.save(updateIdProp, updateId.toString)
+              logger.debug(updateId.toString)
             }
-            logger.debug(updateId.toString)
           }
           case None =>
         }
@@ -60,6 +79,7 @@ object Bot extends App with LazyLogging  {
   case class JoinGame(chatId: Int, userId: Int)
   case class StartGame(chatId: Int, userId: Int)
   case class EndGame(chatId: Int, userId: Int)
+  case class MoveAction(chatId: Int, userId: Int, direction: Direction)
 
   case class PendingGame(chatId: Int, author: Int, players: mutable.ArrayBuffer[Int])
   case class ActiveGame(author: Int, game: ActorRef)
@@ -110,19 +130,34 @@ object Bot extends App with LazyLogging  {
           } else {
             sendMessage (SendMessage(chatId, "Only author of the game can finish it"))
           }
+      case MoveAction(chatId, userId, direction) =>
+        activeGames.get(chatId) match {
+          case Some(game) => game.game ! Move(userId, direction)
+          case None => sendMessage (SendMessage(chatId, "There is no games in this chat"))
+        }
     }
   }
 
+  case class Move(playerId: Int, direction: Direction)
+
   class GameMaster(chatId: Int, players: Set[Int]) extends Actor {
+    val game = new Game(SortedSet(players.toList:_*))
 
-//    val maze = _
-
-    override def receive: Receive = ???
+    override def receive: Receive = {
+      case Move(playerId, direction) =>
+        val message = game.move(playerId, direction) match {
+          case Left(message) => message
+          case Right(Some(cell)) =>
+            "You found following items: " + cell.item.map {
+              case Exit => "Exit"
+              case Chest => "Chest"
+            }.mkString(",")
+          case Right(None) =>
+            "Sorry dude, there is a wall"
+        }
+        TelegramApiClient sendMessage SendMessage(chatId, message)
+    }
   }
-}
-
-case class Game(players: Set[Int]) {
-
 }
 
 object PropsStore {

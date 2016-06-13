@@ -118,7 +118,6 @@ object TelegramApiClient extends LazyLogging {
 
   def getUpdates(updateId: Int = 0): Future[Option[List[Update]]] = {
     GET(new URL(s"${getUpdatesUri}?offset=${updateId}")).apply.map { response =>
-      logger.debug(response.bodyString)
       response.bodyString(StandardCharsets.UTF_8).decodeValidation[Response].fold(
         {errorMessage =>
           logger.error(errorMessage)
