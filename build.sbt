@@ -18,9 +18,4 @@ lazy val telegramApi = (project in file("telegramApi")).
   ))
 lazy val bot = (project in file("bot")).
   settings(Commons.settings: _*).
-  settings(
-    libraryDependencies ++= Seq(
-      "org.scalatest" % "scalatest_2.11" % "2.2.6" % "test"
-    )
-  ).
   dependsOn(maze, telegramApi)

@@ -10,10 +10,10 @@ import scala.collection.mutable
 
 object Walls {
   sealed trait Wall
-  object Up extends Wall
-  object Down extends Wall
-  object Left extends Wall
-  object Right extends Wall
+  case object Up extends Wall
+  case object Down extends Wall
+  case object Left extends Wall
+  case object Right extends Wall
 }
 
 
@@ -25,15 +25,34 @@ object Items {
 
 object Directions {
   sealed trait Direction
-  object Up extends Direction
-  object Down extends Direction
-  object Left extends Direction
-  object Right extends Direction
+  case object Up extends Direction
+  case object Down extends Direction
+  case object Left extends Direction
+  case object Right extends Direction
 }
 
 
 
-case class Cell(walls: Set[Wall] = Set.empty, item: Set[Item] = Set.empty)
+case class Cell(walls: Set[Wall] = Set.empty, item: Set[Item] = Set.empty) {
+
+  /**
+    * Create new cell with added wall
+    * @param wall
+    * @return
+    */
+  def +|(wall: Wall): Cell = {
+    copy(walls + wall)
+  }
+
+  /**
+    * Check if cell has input wall
+    * @param wall
+    * @return
+    */
+  def ?|(wall: Wall): Boolean = {
+    walls.contains(wall)
+  }
+}
 
 case class Maze(cells: Array[Array[Cell]], players: Set[Player])
 
@@ -78,42 +97,39 @@ object Generator {
     cell.copy(cell.walls + wall)
   }
 
-  def generateMaze(mazeSize: Int) = {
-    def wallChance = Random.nextGaussian > 0.6
+  def generateMaze(mazeSize: Int, wallChance: => Boolean) = {
     val cells = mutable.ArraySeq.fill(mazeSize)(mutable.ArraySeq.fill(mazeSize)(Cell()))
 
-    cells(0) = cells(0) map (c => c.copy(c.walls + Walls.Up))
-    cells(mazeSize - 1) = cells(mazeSize - 1) map (c => c.copy(c.walls + Walls.Down))
+    cells(0) = cells(0) map (_ +| Walls.Up)
+    cells(mazeSize - 1) = cells(mazeSize - 1) map (_ +| Walls.Down)
     for (row <- cells) {
-      row(0) = row(0).copy(row(0).walls + Walls.Left)
-      row(mazeSize - 1) = row(mazeSize - 1).copy(row(mazeSize - 1).walls + Walls.Right)
+      row(0) = row(0) +| Walls.Left
+      row(mazeSize - 1) = row(mazeSize - 1) +| Walls.Right
     }
 
-    val group = mutable.ArraySeq.fill[Int](mazeSize)(0)
+    val group = mutable.ArraySeq.range(0, mazeSize)
 
     var i = mazeSize
 
-    for (j <- 0 until mazeSize) group(j) = j
 
     for (y <- 0 until (mazeSize - 1)) {
       for (x <- 0 until (mazeSize - 1)) {
         if (group(x + 1) == group(x)) {
           if (wallChance) {
-            cells(y)(x) = cells(y)(x).copy(cells(y)(x).walls + Walls.Right)
-            cells(y)(x + 1) = cells(y)(x + 1).copy(cells(y)(x + 1).walls + Walls.Left)
-            if (cells(y)(x).walls.contains(Walls.Up) || cells(y)(x + 1).walls.contains(Walls.Up)) {
+            cells(y)(x) = cells(y)(x) +| Walls.Right
+            cells(y)(x + 1) = cells(y)(x + 1) +| Walls.Left
+            if (cells(y)(x) ?| Walls.Up || cells(y)(x + 1) ?| Walls.Up) {
               group(x + 1) = i
               i = i + 1
             }
           }
         } else {
           if (wallChance) {
-            cells(y)(x) = withWall(cells(y)(x), Walls.Right)
-            cells(y)(x + 1) = withWall(cells(y)(x + 1), Walls.Left)
+            cells(y)(x) = cells(y)(x) +| Walls.Right
+            cells(y)(x + 1) = cells(y)(x + 1) +| Walls.Left
             group(x + 1) = i
             i = i + 1
-          }
-          group(x + 1) = group(x)
+          } else group(x + 1) = group(x)
         }
       }
 
@@ -121,14 +137,14 @@ object Generator {
       for (x <- 0 until (mazeSize - 1)) {
         if (group(x) == group(x + 1)) {
           if (wallChance) {
-            cells(y)(x) = withWall(cells(y)(x), Walls.Down)
-            cells(y + 1)(x) = withWall(cells(y + 1)(x), Walls.Up)
+            cells(y)(x) = cells(y)(x) +| Walls.Down
+            cells(y + 1)(x) = cells(y + 1)(x) +| Walls.Up
           } else f = true
         } else {
           if (f) {
             if (wallChance) {
-              cells(y)(x) = withWall(cells(y)(x), Walls.Down)
-              cells(y + 1)(x) = withWall(cells(y + 1)(x), Walls.Up)
+              cells(y)(x) = cells(y)(x) +| Walls.Down
+              cells(y + 1)(x) = cells(y + 1)(x) +| Walls.Up
             }
           }
           f = false
@@ -137,20 +153,19 @@ object Generator {
 
       if ((group(mazeSize - 2) == group(mazeSize - 1)) && f) {
         if (wallChance) {
-          cells(y)(mazeSize - 1) = withWall(cells(y)(mazeSize - 1), Walls.Down)
-          cells(y + 1)(mazeSize - 1) = withWall(cells(y + 1)(mazeSize - 1), Walls.Up)
+          cells(y)(mazeSize - 1) = cells(y)(mazeSize - 1) +| Walls.Down
+          cells(y + 1)(mazeSize - 1) = cells(y + 1)(mazeSize - 1) +| Walls.Up
         }
       }
     }
 
     for (x <- 0 until (mazeSize - 1)) {
-      if ((group(x) == group(x + 1)) &&
-        !cells(mazeSize - 1)(x).walls.contains(Walls.Up) &&
-        !cells(mazeSize - 1)(x + 1).walls.contains(Walls.Up)) {
+      if ((group(x) == group(x + 1)) && !cells(mazeSize - 1)(x).?|(Walls.Up) &&
+        !cells(mazeSize - 1)(x + 1).?|(Walls.Up)) {
 
         if (wallChance) {
-          cells(mazeSize - 1)(x) = withWall(cells(mazeSize - 1)(x), Walls.Right)
-          cells(mazeSize - 1)(x + 1) = withWall(cells(mazeSize - 1)(x + 1), Walls.Left)
+          cells(mazeSize - 1)(x) = cells(mazeSize - 1)(x) +| Walls.Right
+          cells(mazeSize - 1)(x + 1) = cells(mazeSize - 1)(x + 1) +| Walls.Left
         }
       }
     }

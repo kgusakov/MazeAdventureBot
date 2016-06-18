@@ -1,27 +1,37 @@
 import com.maze.game.Walls._
 import com.maze.game.{Cell, Generator}
-import sun.font.GraphicComponent
+import org.scalatest.{FunSuite, Matchers}
+import Matchers._
 
+import scala.collection.mutable
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.geometry.Insets
 import scalafx.scene.Scene
 import scalafx.scene.canvas.{Canvas, GraphicsContext}
-import scalafx.scene.effect.DropShadow
 import scalafx.scene.layout.{HBox, Pane}
-import scalafx.scene.paint.{LinearGradient, Stops}
-import scalafx.scene.text.Text
 import scalafx.scene.paint.Color._
 
-/**
-  * Created by kgusakov on 18.06.16.
-  */
-object MazeTest extends JFXApp {
+class MazeTest extends FunSuite {
+  val expected = mutable.ArraySeq(mutable.ArraySeq(Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right, com.maze.game.Walls.Down),Set())), mutable.ArraySeq(Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Right, com.maze.game.Walls.Up),Set())), mutable.ArraySeq(Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),Set())), mutable.ArraySeq(Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Up),Set()), Cell(Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),Set())), mutable.ArraySeq(Cell(Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left, com.maze.game.Walls.Up),Set()), Cell(Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),Set()), Cell(Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left),Set()), Cell(Set(com.maze.game.Walls.Down),Set()), Cell(Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),Set())))
 
-  val mazeSize = 20
-  val cells = Generator.generateMaze(mazeSize)
+  test ("maze generation test") {
+    val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
 
-  val canvasSize = 500
+    Generator.generateMaze(5, iterator.next) should be (expected)
+
+  }
+}
+
+object DrawApp extends JFXApp {
+
+  val mazeSize = 5
+
+  val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
+
+  val cells = Generator.generateMaze(mazeSize, {iterator.next()})
+
+  val canvasSize = 300
   val canvas = new Canvas(canvasSize, canvasSize)
   val cellSize = canvasSize/mazeSize
   val gc = canvas.graphicsContext2D
