@@ -6,6 +6,7 @@ import com.maze.game.Walls.Wall
 
 import scala.util.Random
 import scala.collection.immutable.SortedSet
+import scala.collection.mutable
 
 object Walls {
   sealed trait Wall
@@ -68,6 +69,92 @@ case class Game(playerIds: SortedSet[Int]) {
       Array.ofDim(dimension._1, dimension._2),
       playerIds.map(id => Player(id,
         (r.nextInt(dimension._1), r.nextInt(dimension._2)))))
+  }
+}
+
+object Generator {
+
+  private def withWall(cell: Cell, wall: Wall) = {
+    cell.copy(cell.walls + wall)
+  }
+
+  def generateMaze(mazeSize: Int) = {
+    def wallChance = Random.nextGaussian > 0.6
+    val cells = mutable.ArraySeq.fill(mazeSize)(mutable.ArraySeq.fill(mazeSize)(Cell()))
+
+    cells(0) = cells(0) map (c => c.copy(c.walls + Walls.Up))
+    cells(mazeSize - 1) = cells(mazeSize - 1) map (c => c.copy(c.walls + Walls.Down))
+    for (row <- cells) {
+      row(0) = row(0).copy(row(0).walls + Walls.Left)
+      row(mazeSize - 1) = row(mazeSize - 1).copy(row(mazeSize - 1).walls + Walls.Right)
+    }
+
+    val group = mutable.ArraySeq.fill[Int](mazeSize)(0)
+
+    var i = mazeSize
+
+    for (j <- 0 until mazeSize) group(j) = j
+
+    for (y <- 0 until (mazeSize - 1)) {
+      for (x <- 0 until (mazeSize - 1)) {
+        if (group(x + 1) == group(x)) {
+          if (wallChance) {
+            cells(y)(x) = cells(y)(x).copy(cells(y)(x).walls + Walls.Right)
+            cells(y)(x + 1) = cells(y)(x + 1).copy(cells(y)(x + 1).walls + Walls.Left)
+            if (cells(y)(x).walls.contains(Walls.Up) || cells(y)(x + 1).walls.contains(Walls.Up)) {
+              group(x + 1) = i
+              i = i + 1
+            }
+          }
+        } else {
+          if (wallChance) {
+            cells(y)(x) = withWall(cells(y)(x), Walls.Right)
+            cells(y)(x + 1) = withWall(cells(y)(x + 1), Walls.Left)
+            group(x + 1) = i
+            i = i + 1
+          }
+          group(x + 1) = group(x)
+        }
+      }
+
+      var f = false
+      for (x <- 0 until (mazeSize - 1)) {
+        if (group(x) == group(x + 1)) {
+          if (wallChance) {
+            cells(y)(x) = withWall(cells(y)(x), Walls.Down)
+            cells(y + 1)(x) = withWall(cells(y + 1)(x), Walls.Up)
+          } else f = true
+        } else {
+          if (f) {
+            if (wallChance) {
+              cells(y)(x) = withWall(cells(y)(x), Walls.Down)
+              cells(y + 1)(x) = withWall(cells(y + 1)(x), Walls.Up)
+            }
+          }
+          f = false
+        }
+      }
+
+      if ((group(mazeSize - 2) == group(mazeSize - 1)) && f) {
+        if (wallChance) {
+          cells(y)(mazeSize - 1) = withWall(cells(y)(mazeSize - 1), Walls.Down)
+          cells(y + 1)(mazeSize - 1) = withWall(cells(y + 1)(mazeSize - 1), Walls.Up)
+        }
+      }
+    }
+
+    for (x <- 0 until (mazeSize - 1)) {
+      if ((group(x) == group(x + 1)) &&
+        !cells(mazeSize - 1)(x).walls.contains(Walls.Up) &&
+        !cells(mazeSize - 1)(x + 1).walls.contains(Walls.Up)) {
+
+        if (wallChance) {
+          cells(mazeSize - 1)(x) = withWall(cells(mazeSize - 1)(x), Walls.Right)
+          cells(mazeSize - 1)(x + 1) = withWall(cells(mazeSize - 1)(x + 1), Walls.Left)
+        }
+      }
+    }
+    cells
   }
 }
 
