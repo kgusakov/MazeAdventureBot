@@ -33,19 +33,16 @@ object Directions {
 
 
 
-case class Cell(walls: Set[Wall] = Set.empty, item: Set[Item] = Set.empty) {
+case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[Item] = mutable.Set.empty) {
 
-  /**
-    * Create new cell with added wall
-    * @param wall
-    * @return
-    */
-  def +|(wall: Wall): Cell = {
-    copy(walls + wall)
+  def +|=(wall: Wall): Cell = {
+    walls += wall
+    this
   }
 
   /**
     * Check if cell has input wall
+    *
     * @param wall
     * @return
     */
@@ -100,24 +97,40 @@ object Generator {
   def generateMaze(mazeSize: Int, wallChance: => Boolean) = {
     val cells = mutable.ArraySeq.fill(mazeSize)(mutable.ArraySeq.fill(mazeSize)(Cell()))
 
-    cells(0) = cells(0) map (_ +| Walls.Up)
-    cells(mazeSize - 1) = cells(mazeSize - 1) map (_ +| Walls.Down)
+    def buildWall(pos: (Int, Int), wall: Wall): Unit = {
+      val (y,x) = pos
+      wall match {
+        case Walls.Down =>
+          cells(y)(x) +|= Walls.Down
+          cells(y + 1)(x) +|= Walls.Up
+        case Walls.Up =>
+          cells(y)(x) +|= Walls.Up
+          cells(y - 1)(x) +|= Walls.Down
+        case Walls.Right =>
+          cells(y)(x) +|= Walls.Right
+          cells(y)(x + 1) +|= Walls.Left
+        case Walls.Left =>
+          cells(y)(x) +|= Walls.Left
+          cells(y)(x - 1) +|= Walls.Right
+      }
+    }
+
+    cells(0) foreach (_ +|= Walls.Up)
+    cells(mazeSize - 1) foreach (_ +|= Walls.Down)
     for (row <- cells) {
-      row(0) = row(0) +| Walls.Left
-      row(mazeSize - 1) = row(mazeSize - 1) +| Walls.Right
+      row(0) +|= Walls.Left
+      row(mazeSize - 1) +|= Walls.Right
     }
 
     val group = mutable.ArraySeq.range(0, mazeSize)
 
     var i = mazeSize
 
-
     for (y <- 0 until (mazeSize - 1)) {
       for (x <- 0 until (mazeSize - 1)) {
         if (group(x + 1) == group(x)) {
           if (wallChance) {
-            cells(y)(x) = cells(y)(x) +| Walls.Right
-            cells(y)(x + 1) = cells(y)(x + 1) +| Walls.Left
+            buildWall((y, x), Walls.Right)
             if (cells(y)(x) ?| Walls.Up || cells(y)(x + 1) ?| Walls.Up) {
               group(x + 1) = i
               i = i + 1
@@ -125,8 +138,7 @@ object Generator {
           }
         } else {
           if (wallChance) {
-            cells(y)(x) = cells(y)(x) +| Walls.Right
-            cells(y)(x + 1) = cells(y)(x + 1) +| Walls.Left
+            buildWall((y,x), Walls.Right)
             group(x + 1) = i
             i = i + 1
           } else group(x + 1) = group(x)
@@ -136,26 +148,16 @@ object Generator {
       var f = false
       for (x <- 0 until (mazeSize - 1)) {
         if (group(x) == group(x + 1)) {
-          if (wallChance) {
-            cells(y)(x) = cells(y)(x) +| Walls.Down
-            cells(y + 1)(x) = cells(y + 1)(x) +| Walls.Up
-          } else f = true
+          if (wallChance) buildWall((y,x), Walls.Down)
+          else f = true
         } else {
-          if (f) {
-            if (wallChance) {
-              cells(y)(x) = cells(y)(x) +| Walls.Down
-              cells(y + 1)(x) = cells(y + 1)(x) +| Walls.Up
-            }
-          }
+          if (f && wallChance) buildWall((y,x), Walls.Down)
           f = false
         }
       }
 
       if ((group(mazeSize - 2) == group(mazeSize - 1)) && f) {
-        if (wallChance) {
-          cells(y)(mazeSize - 1) = cells(y)(mazeSize - 1) +| Walls.Down
-          cells(y + 1)(mazeSize - 1) = cells(y + 1)(mazeSize - 1) +| Walls.Up
-        }
+        if (wallChance) buildWall((y, mazeSize - 1), Walls.Down)
       }
     }
 
@@ -163,10 +165,7 @@ object Generator {
       if ((group(x) == group(x + 1)) && !cells(mazeSize - 1)(x).?|(Walls.Up) &&
         !cells(mazeSize - 1)(x + 1).?|(Walls.Up)) {
 
-        if (wallChance) {
-          cells(mazeSize - 1)(x) = cells(mazeSize - 1)(x) +| Walls.Right
-          cells(mazeSize - 1)(x + 1) = cells(mazeSize - 1)(x + 1) +| Walls.Left
-        }
+        if (wallChance) buildWall((mazeSize - 1, x), Walls.Right)
       }
     }
     cells
