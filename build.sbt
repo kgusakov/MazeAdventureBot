@@ -18,3 +18,5 @@ lazy val telegramApi = (project in file("telegramApi")).
 lazy val bot = (project in file("bot")).
   settings(Commons.settings: _*).
   dependsOn(maze, telegramApi)
+
+mainClass in assembly := Some("com.maze.bot.Bot")
