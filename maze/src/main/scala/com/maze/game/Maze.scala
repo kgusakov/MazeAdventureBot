@@ -1,13 +1,21 @@
 package com.maze.game
 
+import java.io.File
+import java.util.UUID
+import javax.imageio.ImageIO
+
 import com.maze.game.Directions.Direction
-import com.maze.game.Items.Item
+import com.maze.game.Items.{Exit, Item}
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.util.Random
 import scala.collection.immutable.SortedSet
 import scala.collection.mutable
+import scalafx.embed.swing.SwingFXUtils
+import scalafx.scene.canvas.{Canvas, GraphicsContext}
+import scalafx.scene.image.WritableImage
+import scalafx.scene.paint.Color
 
 object Walls {
   sealed trait Wall
@@ -64,6 +72,7 @@ case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
   import Game.direction2wall
 
   private val maze = Generator.generateMaze(10, Random.nextGaussian() > 0.2, playerIds)
+  Drawer.drawMaze(maze)
 
   private var currentPlayer: Int = playerIds.head
 
@@ -188,7 +197,63 @@ object Generator {
         if (wallChance) buildWall((mazeSize - 1, x), Walls.Right)
       }
     }
+
+    val edges = cells.head ++ cells.last ++ cells.map(_.head) ++ cells.map(_.last)
+    edges(Random.nextInt(edges.length)).item.add(Exit)
     cells
+  }
+}
+
+object Drawer extends LazyLogging {
+
+  def drawMaze(maze: Maze) = {
+    val cells = maze.cells
+    val mazeSize = maze.cells.length
+
+    val canvasSize = 300
+    val canvas = new Canvas(canvasSize, canvasSize)
+    val cellSize = canvasSize / mazeSize
+    val gc = canvas.graphicsContext2D
+    gc.beginPath()
+    for (y <- cells.indices) {
+      for (x <- cells.indices) {
+        drawCell(gc, (x * cellSize + cellSize / 2, y * cellSize + cellSize / 2), cells(y)(x), cellSize)
+      }
+    }
+    for (player <- maze.players) {
+      drawPlayer(gc, (player.position.x * cellSize + cellSize / 2, player.position.y * cellSize + cellSize / 2), cellSize)
+    }
+    gc.strokePath()
+    val writeableImage = new WritableImage(canvasSize, canvasSize)
+    canvas.snapshot(null, writeableImage)
+    ImageIO.write(SwingFXUtils.fromFXImage(writeableImage, null), "png", new File(UUID.randomUUID().toString))
+    logger.debug("Maze drawed")
+  }
+
+  def drawPlayer(gc: GraphicsContext, position: (Double, Double), cellSize: Double): Unit = {
+    gc.setFill(Color.Green)
+    gc.fillRect(position._1 - cellSize / 4, position._2 - cellSize / 4, cellSize / 2, cellSize / 2)
+  }
+
+  def drawCell(gc: GraphicsContext, position: (Double, Double), cell: Cell, cellSize: Double) {
+    if (cell.item.contains(Items.Exit)) {
+      logger.debug("Exit drawing")
+      gc.fillRect(position._1 - cellSize / 2, position._2 - cellSize / 2, cellSize, cellSize)
+    }
+    cell.walls.foreach {
+      case Walls.Up =>
+        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
+        gc.lineTo(position._1 + cellSize, position._2 - cellSize / 2)
+      case Walls.Down =>
+        gc.moveTo(position._1 - cellSize / 2, position._2 + cellSize / 2)
+        gc.lineTo(position._1 + cellSize, position._2 + cellSize / 2)
+      case Walls.Left =>
+        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
+        gc.lineTo(position._1 - cellSize / 2, position._2 + cellSize)
+      case Walls.Right =>
+        gc.moveTo(position._1 + cellSize / 2, position._2 - cellSize / 2)
+        gc.lineTo(position._1 + cellSize / 2, position._2 + cellSize)
+    }
   }
 }
 

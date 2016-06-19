@@ -1,19 +1,28 @@
-import com.maze.game._
+import java.io.File
+import java.util.UUID
+import javax.imageio.ImageIO
+
+import com.maze.game.{Items, _}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.util.{Left, Right}
 import Matchers._
+import com.maze.game.Items.Exit
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.mutable
 import scala.collection.immutable.SortedSet
 import scala.util.Random
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
+import scalafx.embed.swing.SwingFXUtils
 import scalafx.geometry.Insets
 import scalafx.scene.Scene
 import scalafx.scene.canvas.{Canvas, GraphicsContext}
+import scalafx.scene.image.WritableImage
 import scalafx.scene.layout.{HBox, Pane}
 import scalafx.scene.paint.Color._
+import scalafx.scene.paint.{Color, Paint}
 
 class MazeTest extends FunSuite {
   val expected = mutable.ArraySeq(mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right, com.maze.game.Walls.Down),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Up),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left, com.maze.game.Walls.Up),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),mutable.Set())))
@@ -47,56 +56,13 @@ class MazeTest extends FunSuite {
       }
     }
   }
-}
 
-object DrawApp extends JFXApp {
+  test ("check drawner") {
 
-  val mazeSize = 15
-
-  val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
-
-  val cells = Generator.generateCells(mazeSize, {Random.nextGaussian() > 0.2})
-
-  val canvasSize = 300
-  val canvas = new Canvas(canvasSize, canvasSize)
-  val cellSize = canvasSize/mazeSize
-  val gc = canvas.graphicsContext2D
-  gc.beginPath()
-  for (y <- cells.indices) {
-    for (x <- cells.indices) {
-      drawCell(gc, (x * cellSize + cellSize / 2, y * cellSize + cellSize / 2), cells(y)(x), cellSize)
-    }
-  }
-  gc.strokePath()
-
-  stage = new PrimaryStage {
-    title = "ScalaFX Hello World"
-    scene = new Scene {
-      fill = WhiteSmoke
-      content = new Pane {
-        padding = Insets(20,20,20,20)
-        children = Seq(
-          canvas
-        )
-      }
-    }
+    Drawer.drawMaze(Generator.generateMaze(10, Random.nextGaussian() > 0.2, SortedSet(1,2)))
   }
 
-  def drawCell(gc: GraphicsContext, position: (Double, Double), cell: Cell, cellSize: Double) {
-    cell.walls.foreach {
-      case Walls.Up =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 + cellSize, position._2 - cellSize / 2)
-      case Walls.Down =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 + cellSize / 2)
-        gc.lineTo(position._1 + cellSize, position._2 + cellSize / 2)
-      case Walls.Left =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 - cellSize / 2, position._2 + cellSize)
-      case Walls.Right =>
-        gc.moveTo(position._1 + cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 + cellSize / 2, position._2 + cellSize)
-    }
-  }
+
+
 
 }
