@@ -14,8 +14,23 @@ import scala.concurrent.Future
 case class Update(updateId: Int,
                   message: Message)
 object Update {
-  implicit def UpdateCodecJson: CodecJson[Update] =
-    casecodec2(Update.apply, Update.unapply)("update_id", "message")
+
+  implicit def UpdateCodecJson: CodecJson[Update] = CodecJson (
+    (update: Update) =>
+      ("update_id" := update.updateId) ->:
+        ("message" := update.message) ->:
+        jEmptyObject,
+    u => for {
+      id <- (u --\ "update_id").as[Int]
+      message <- messageExtract(u).as[Message]
+    } yield Update(id, message))
+
+  def messageExtract(hCursor: HCursor): ACursor = {
+    val cursor = hCursor --\ "message"
+    if (cursor.failed)
+      hCursor --\ "edited_message"
+    else cursor
+  }
 }
 
 case class Response(ok: Boolean, result: List[Update])
@@ -79,10 +94,23 @@ object Chat {
 
 }
 
-case class User(id: Int, firstName: String, lastName: String, username: String)
+case class User(id: Int, firstName: Option[String] = None, lastName: Option[String] = None, username: String)
 object User {
-  implicit def UserCodecJson: CodecJson[User] =
-    casecodec4(User.apply, User.unapply)("id", "first_name", "last_name", "username")
+
+  implicit def UserCodecJson: CodecJson[User] = CodecJson (
+    (user: User) =>
+      ("id" := user.id) ->:
+        user.firstName.map("first_name" := _) ->?:
+        user.lastName.map("last_name" := _) ->?:
+        ("username" := user.username) ->:
+        jEmptyObject,
+    u => for {
+      id <- (u --\ "id").as[Int]
+      firstName <- (u --\ "first_name").as[Option[String]]
+      lastName <- (u --\ "last_name").as[Option[String]]
+      username <- (u --\ "username").as[String]
+    } yield User(id, firstName, lastName, username)
+  )
 }
 
 case class SendMessage(chatId: Int,
@@ -120,7 +148,7 @@ object TelegramApiClient extends LazyLogging {
     GET(new URL(s"${getUpdatesUri}?offset=${updateId}")).apply.map { response =>
       response.bodyString(StandardCharsets.UTF_8).decodeValidation[Response].fold(
         {errorMessage =>
-          logger.error(errorMessage)
+          logger.error(response.bodyString + " " + errorMessage)
           None
         },
         r => Some(r.result))
