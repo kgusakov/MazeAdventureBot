@@ -4,8 +4,7 @@ lazy val maze = (project in file("maze")).
   settings(Commons.settings: _*).
   settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" % "akka-actor_2.11" % "2.4.4",
-      "org.scalafx" % "scalafx_2.11" % "8.0.92-R10"
+      "com.typesafe.akka" % "akka-actor_2.11" % "2.4.4"
     )
   ).
   dependsOn(telegramApi)

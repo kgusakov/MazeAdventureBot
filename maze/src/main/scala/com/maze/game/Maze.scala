@@ -1,5 +1,7 @@
 package com.maze.game
 
+import java.awt.{Color, Graphics2D}
+import java.awt.image.BufferedImage
 import java.io.File
 import java.util.UUID
 import javax.imageio.ImageIO
@@ -8,14 +10,11 @@ import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Exit, Item}
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
+import sun.print.PathGraphics
 
 import scala.util.Random
 import scala.collection.immutable.SortedSet
 import scala.collection.mutable
-import scalafx.embed.swing.SwingFXUtils
-import scalafx.scene.canvas.{Canvas, GraphicsContext}
-import scalafx.scene.image.WritableImage
-import scalafx.scene.paint.Color
 
 object Walls {
   sealed trait Wall
@@ -211,10 +210,12 @@ object Drawer extends LazyLogging {
     val mazeSize = maze.cells.length
 
     val canvasSize = 300
-    val canvas = new Canvas(canvasSize, canvasSize)
+
+    val canvas = new BufferedImage(canvasSize, canvasSize, BufferedImage.TYPE_INT_RGB)
+    val gc = canvas.createGraphics()
+    gc.setColor(Color.WHITE)
+
     val cellSize = canvasSize / mazeSize
-    val gc = canvas.graphicsContext2D
-    gc.beginPath()
     for (y <- cells.indices) {
       for (x <- cells.indices) {
         drawCell(gc, (x * cellSize + cellSize / 2, y * cellSize + cellSize / 2), cells(y)(x), cellSize)
@@ -223,36 +224,32 @@ object Drawer extends LazyLogging {
     for (player <- maze.players) {
       drawPlayer(gc, (player.position.x * cellSize + cellSize / 2, player.position.y * cellSize + cellSize / 2), cellSize)
     }
-    gc.strokePath()
-    val writeableImage = new WritableImage(canvasSize, canvasSize)
-    canvas.snapshot(null, writeableImage)
-    ImageIO.write(SwingFXUtils.fromFXImage(writeableImage, null), "png", new File(UUID.randomUUID().toString))
+    gc.dispose()
+    javax.imageio.ImageIO.write(canvas, "png", new java.io.File(UUID.randomUUID().toString))
     logger.debug("Maze drawed")
   }
 
-  def drawPlayer(gc: GraphicsContext, position: (Double, Double), cellSize: Double): Unit = {
-    gc.setFill(Color.Green)
+  def drawPlayer(gc: Graphics2D, position: (Int, Int), cellSize: Int): Unit = {
+    gc.setColor(Color.GREEN)
     gc.fillRect(position._1 - cellSize / 4, position._2 - cellSize / 4, cellSize / 2, cellSize / 2)
   }
 
-  def drawCell(gc: GraphicsContext, position: (Double, Double), cell: Cell, cellSize: Double) {
+  def drawCell(gc: Graphics2D, position: (Int, Int), cell: Cell, cellSize: Int) {
     if (cell.item.contains(Items.Exit)) {
       logger.debug("Exit drawing")
+      gc.setColor(Color.RED)
       gc.fillRect(position._1 - cellSize / 2, position._2 - cellSize / 2, cellSize, cellSize)
     }
+    gc.setColor(Color.WHITE)
     cell.walls.foreach {
       case Walls.Up =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 + cellSize, position._2 - cellSize / 2)
+        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize, position._2 - cellSize / 2)
       case Walls.Down =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 + cellSize / 2)
-        gc.lineTo(position._1 + cellSize, position._2 + cellSize / 2)
+        gc.drawLine(position._1 - cellSize / 2, position._2 + cellSize / 2, position._1 + cellSize, position._2 + cellSize / 2)
       case Walls.Left =>
-        gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 - cellSize / 2, position._2 + cellSize)
+        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 - cellSize / 2, position._2 + cellSize)
       case Walls.Right =>
-        gc.moveTo(position._1 + cellSize / 2, position._2 - cellSize / 2)
-        gc.lineTo(position._1 + cellSize / 2, position._2 + cellSize)
+        gc.drawLine(position._1 + cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize / 2, position._2 + cellSize)
     }
   }
 }
