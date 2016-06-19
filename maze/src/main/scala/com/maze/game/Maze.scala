@@ -3,6 +3,7 @@ package com.maze.game
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.Item
 import com.maze.game.Walls.Wall
+import com.typesafe.scalalogging.LazyLogging
 
 import scala.util.Random
 import scala.collection.immutable.SortedSet
@@ -58,7 +59,7 @@ case class Maze(cells: Array[Array[Cell]], players: Set[Player]) {
 case class Position(var x: Int, var y: Int)
 case class Player(id: Int, position: Position)
 
-case class Game(playerIds: SortedSet[Int]) {
+case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
 
   import Game.direction2wall
 
@@ -69,12 +70,13 @@ case class Game(playerIds: SortedSet[Int]) {
   def move(playerId: Int, direction: Direction): Either[String, Option[Cell]] = {
     if (currentPlayer == playerId) {
       currentPlayer = nextPlayer
+      logger.debug(s"Player ${maze.player(playerId)} is moving to ${direction}")
       val pos = maze.player(playerId).position
       if (maze.cells(pos.y)(pos.x) ?| direction) Right(None)
       else {
         direction match {
-          case Directions.Up => pos.y += 1
-          case Directions.Down => pos.y -= 1
+          case Directions.Up => pos.y -= 1
+          case Directions.Down => pos.y += 1
           case Directions.Left => pos.x -= 1
           case Directions.Right => pos.x += 1
         }
@@ -109,10 +111,6 @@ object Game {
 }
 
 object Generator {
-
-  private def withWall(cell: Cell, wall: Wall) = {
-    cell.copy(cell.walls + wall)
-  }
 
   def generateMaze(mazeSize: Int, wallChance: => Boolean, playerIds: SortedSet[Int]): Maze = {
     val r = Random

@@ -1,9 +1,11 @@
-import com.maze.game.Walls._
-import com.maze.game.{Cell, Generator}
+import com.maze.game._
 import org.scalatest.{FunSuite, Matchers}
+
+import scala.util.{Left, Right}
 import Matchers._
 
 import scala.collection.mutable
+import scala.collection.immutable.SortedSet
 import scala.util.Random
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
@@ -20,7 +22,30 @@ class MazeTest extends FunSuite {
     val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
 
     Generator.generateCells(5, iterator.next) should be (expected)
+  }
 
+  test ("maze generic walls test") {
+    for (i <- 0 to 1000) {
+      val cells = Generator.generateCells(10, Random.nextGaussian() > 0.2)
+      cells.head.forall(_ ?| Walls.Up) should be (true)
+      cells.last.forall(_ ?| Walls.Down) should be (true)
+      cells.map(_.head).forall(_ ?| Walls.Left) should be (true)
+      cells.map(_.last).forall(_ ?| Walls.Right) should be (true)
+    }
+  }
+
+  test ("game movement") {
+    for (i <- 0 to 1000) {
+      val game = Game(SortedSet(1))
+      game.move(1, Directions.Up) match {
+        case Left(s) => game.move(1, Directions.Up) should be ('left)
+        case Right(cell) => game.move(1, Directions.Down) should be ('right)
+      }
+      game.move(1, Directions.Right) match {
+        case Left(s) => game.move(1, Directions.Right) should be ('left)
+        case Right(cell) => game.move(1, Directions.Left) should be ('right)
+      }
+    }
   }
 }
 
@@ -59,16 +84,16 @@ object DrawApp extends JFXApp {
 
   def drawCell(gc: GraphicsContext, position: (Double, Double), cell: Cell, cellSize: Double) {
     cell.walls.foreach {
-      case Up =>
+      case Walls.Up =>
         gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
         gc.lineTo(position._1 + cellSize, position._2 - cellSize / 2)
-      case Down =>
+      case Walls.Down =>
         gc.moveTo(position._1 - cellSize / 2, position._2 + cellSize / 2)
         gc.lineTo(position._1 + cellSize, position._2 + cellSize / 2)
-      case Left =>
+      case Walls.Left =>
         gc.moveTo(position._1 - cellSize / 2, position._2 - cellSize / 2)
         gc.lineTo(position._1 - cellSize / 2, position._2 + cellSize)
-      case Right =>
+      case Walls.Right =>
         gc.moveTo(position._1 + cellSize / 2, position._2 - cellSize / 2)
         gc.lineTo(position._1 + cellSize / 2, position._2 + cellSize)
     }
