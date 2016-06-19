@@ -45,7 +45,7 @@ object MessageEntity {
     casecodec3(MessageEntity.apply, MessageEntity.unapply)("type", "offset", "length")
 }
 
-case class Message(messageId: Int, from: User, chat: Chat, date: Long, text: String, entities: Option[List[MessageEntity]] = None) {
+case class Message(messageId: Int, from: User, chat: Chat, date: Long, text: Option[String], entities: Option[List[MessageEntity]] = None) {
 
   lazy val isCommand = entities.fold(false)(_.exists(m => m.`type` == "bot_command"))
 }
@@ -57,14 +57,14 @@ object Message {
         ("from" := m.from) ->:
         ("chat" := m.chat) ->:
         ("date" := m.date) ->:
-        ("text" := m.text) ->:
+        m.text.map("text" := _) ->?:
         m.entities.map("entities" := _) ->?:
         jEmptyObject,
       c => for {
         messageId <- (c --\ "message_id").as[Int]
         from <- (c --\ "from").as[User]
         chat <- (c --\ "chat").as[Chat]
-        text <- (c --\ "text").as[String]
+        text <- (c --\ "text").as[Option[String]]
         date <- (c --\ "date").as[Long]
         entities <- (c --\ "entities").as[Option[List[MessageEntity]]]
     } yield Message(messageId, from, chat, date, text, entities))

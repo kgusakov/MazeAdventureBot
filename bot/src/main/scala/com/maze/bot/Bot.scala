@@ -47,15 +47,15 @@ object Bot extends App with LazyLogging  {
             updates.filter(_.message.isCommand).foreach { update =>
               logger.info("Received update: " + update)
               update.message match {
-                case Message(_, from, chat, _, text, _) if text.startsWith("/new") =>
+                case Message(_, from, chat, _, Some(text), _) if text.startsWith("/new") =>
                   gameManager ! NewGame(chat.id, from.id)
-                case Message(_, from, chat, _, text, _) if text.startsWith("/join") =>
+                case Message(_, from, chat, _, Some(text), _) if text.startsWith("/join") =>
                   gameManager ! JoinGame(chat.id, from.id)
-                case Message(_, from, chat, _, text, _) if text.startsWith("/start") =>
+                case Message(_, from, chat, _, Some(text), _) if text.startsWith("/start") =>
                   gameManager ! StartGame(chat.id, from.id)
-                case Message(_, from, chat, _, text, _) if text.startsWith("/end") =>
+                case Message(_, from, chat, _, Some(text), _) if text.startsWith("/end") =>
                   gameManager ! EndGame(chat.id, from.id)
-                case Message(_, from, chat, _, text, _) if text.startsWith("/move") =>
+                case Message(_, from, chat, _, Some(text), _) if text.startsWith("/move") =>
                   toMove(text) match {
                     case Left(errorMessage) => TelegramApiClient.sendMessage(SendMessage(chat.id, errorMessage))
                     case Right(direction) => gameManager ! MoveAction(chat.id, from.id, direction)

@@ -65,6 +65,15 @@ class MarshallingTest extends FunSuite with ScalaFutures {
       |"message":{"message_id":293,"from":{"id":91765916,"first_name":"Alexandra","username":"aabogacheva"},"chat":{"id":-121062390,"title":"Chat Bot Test","type":"group"},"date":1466327720,"text":"\/move","entities":[{"type":"bot_command","offset":0,"length":5}]}}]}
     """.stripMargin
 
+  val failJson2 =
+    """
+      |{"ok":true,"result":[{"update_id":327884361,
+      |"message":{"message_id":533,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov"},"chat":{"id":-5240031,"title":"ex-opensoft-party","type":"group"},"date":1466354182,"new_chat_participant":{"id":180715621,"first_name":"MazeAdventureBot","username":"MazeAdventureBot"},"new_chat_member":{"id":180715621,"first_name":"MazeAdventureBot","username":"MazeAdventureBot"}}},{"update_id":327884362,
+      |"message":{"message_id":534,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov"},"chat":{"id":-5240031,"title":"ex-opensoft-party","type":"group"},"date":1466354198,"text":"\/new@MazeAdventureBot","entities":[{"type":"bot_command","offset":0,"length":21}]}},{"update_id":327884363,
+      |"message":{"message_id":535,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov"},"chat":{"id":-5240031,"title":"ex-opensoft-party","type":"group"},"date":1466354208,"text":"\/start","entities":[{"type":"bot_command","offset":0,"length":6}]}},{"update_id":327884364,
+      |"message":{"message_id":536,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov"},"chat":{"id":-5240031,"title":"ex-opensoft-party","type":"group"},"date":1466354210,"text":"\/new@MazeAdventureBot","entities":[{"type":"bot_command","offset":0,"length":21}]}}]}
+    """.stripMargin
+
   test ("Unmarshalling of Updates") {
     import argonaut._, Argonaut._
     testJson.decodeValidation[Response].toOption.get.result.size should be (2)
@@ -101,16 +110,11 @@ class MarshallingTest extends FunSuite with ScalaFutures {
     failJson1.decodeValidation[Response].isSuccess should be (true)
   }
 
-  ignore ("echoTest")  {
-    whenReady(TelegramApiClient.getUpdates()) {
-      case Some(results) => results.foreach{u =>
-        import argonaut._, Argonaut._
-        if (!u.message.text.isEmpty)
-          whenReady(TelegramApiClient.sendMessage(SendMessage(u.message.chat.id, u.message.text))) {
-            case response: HttpResponse =>
-              response.code should be (HttpResponseCode.Ok)
-          }}
-    }
+  test ("failingJson2") {
+    import argonaut._, Argonaut._
+    val result = failJson2.decodeValidation[Response]
+    println (failJson2.decodeEither[Response].leftSideValue)
+    failJson2.decodeValidation[Response].isSuccess should be (true)
   }
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(timeout =  Span(5, Seconds), interval = Span(500, Millis))

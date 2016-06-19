@@ -2,15 +2,12 @@ package com.maze.game
 
 import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
-import java.io.File
 import java.util.UUID
-import javax.imageio.ImageIO
 
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Exit, Item}
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
-import sun.print.PathGraphics
 
 import scala.util.Random
 import scala.collection.immutable.SortedSet
@@ -71,7 +68,6 @@ case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
   import Game.direction2wall
 
   private val maze = Generator.generateMaze(10, Random.nextGaussian() > 0.2, playerIds)
-  Drawer.drawMaze(maze)
 
   private var currentPlayer: Int = playerIds.head
 
