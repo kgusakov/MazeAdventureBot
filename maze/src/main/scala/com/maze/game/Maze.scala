@@ -51,40 +51,60 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[
   }
 }
 
-case class Maze(cells: Array[Array[Cell]], players: Set[Player])
+case class Maze(cells: Array[Array[Cell]], players: Set[Player]) {
+  def player(id: Int) = players.find(_.id == id).get
+}
 
-case class Player(id: Int, position: (Int, Int))
+case class Position(var x: Int, var y: Int)
+case class Player(id: Int, position: Position)
 
 case class Game(playerIds: SortedSet[Int]) {
 
-  private val rand = Random
+  import Game.direction2wall
 
-  private val maze = generateMaze((10, 10), playerIds)
+  private val maze = Generator.generateMaze(10, Random.nextGaussian() > 0.2, playerIds)
 
   private var currentPlayer: Int = playerIds.head
 
   def move(playerId: Int, direction: Direction): Either[String, Option[Cell]] = {
     if (currentPlayer == playerId) {
       currentPlayer = nextPlayer
-      if (rand.nextBoolean) Right(None)
-      else Right(Some(new Cell))
+      val pos = maze.player(playerId).position
+      if (maze.cells(pos.y)(pos.x) ?| direction) Right(None)
+      else {
+        direction match {
+          case Directions.Up => pos.y += 1
+          case Directions.Down => pos.y -= 1
+          case Directions.Left => pos.x -= 1
+          case Directions.Right => pos.x += 1
+        }
+        Right(Some(maze.cells(pos.y)(pos.x)))
+      }
     }
     else Left("Not you turn")
   }
 
+  def checkCurrentPlayer = currentPlayer
+
   private def nextPlayer: Int = {
     val playersSeq = playerIds.toSeq
     val nextIndex = playersSeq.indexOf(currentPlayer) + 1
-    if (nextIndex == playersSeq.length) playersSeq(0)
+    if (nextIndex == playersSeq.length) playersSeq.head
     else playersSeq(nextIndex)
   }
 
-  private def generateMaze(dimension: (Int, Int), playerIds: SortedSet[Int]): Maze = {
-    val r = Random
-    Maze(
-      Array.ofDim(dimension._1, dimension._2),
-      playerIds.map(id => Player(id,
-        (r.nextInt(dimension._1), r.nextInt(dimension._2)))))
+}
+
+object Game {
+  import scala.language.implicitConversions
+
+  implicit def direction2wall(direction: Direction): Wall = {
+    direction match {
+      case Directions.Up => Walls.Up
+      case Directions.Down => Walls.Down
+      case Directions.Left => Walls.Left
+      case Directions.Right => Walls.Right
+    }
   }
 }
 
@@ -94,8 +114,16 @@ object Generator {
     cell.copy(cell.walls + wall)
   }
 
-  def generateMaze(mazeSize: Int, wallChance: => Boolean) = {
-    val cells = mutable.ArraySeq.fill(mazeSize)(mutable.ArraySeq.fill(mazeSize)(Cell()))
+  def generateMaze(mazeSize: Int, wallChance: => Boolean, playerIds: SortedSet[Int]): Maze = {
+    val r = Random
+    Maze(
+      Generator.generateCells(mazeSize, wallChance),
+      playerIds.map(id => Player(id,
+        Position(r.nextInt(mazeSize), r.nextInt(mazeSize)))))
+  }
+
+  def generateCells(mazeSize: Int, wallChance: => Boolean) = {
+    val cells = Array.fill(mazeSize)(Array.fill(mazeSize)(Cell()))
 
     def buildWall(pos: (Int, Int), wall: Wall): Unit = {
       val (y,x) = pos
@@ -103,22 +131,16 @@ object Generator {
         case Walls.Down =>
           cells(y)(x) +|= Walls.Down
           cells(y + 1)(x) +|= Walls.Up
-        case Walls.Up =>
-          cells(y)(x) +|= Walls.Up
-          cells(y - 1)(x) +|= Walls.Down
         case Walls.Right =>
           cells(y)(x) +|= Walls.Right
           cells(y)(x + 1) +|= Walls.Left
-        case Walls.Left =>
-          cells(y)(x) +|= Walls.Left
-          cells(y)(x - 1) +|= Walls.Right
       }
     }
 
-    cells(0) foreach (_ +|= Walls.Up)
+    cells.head foreach (_ +|= Walls.Up)
     cells(mazeSize - 1) foreach (_ +|= Walls.Down)
     for (row <- cells) {
-      row(0) +|= Walls.Left
+      row.head +|= Walls.Left
       row(mazeSize - 1) +|= Walls.Right
     }
 

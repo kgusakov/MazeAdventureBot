@@ -4,6 +4,7 @@ import org.scalatest.{FunSuite, Matchers}
 import Matchers._
 
 import scala.collection.mutable
+import scala.util.Random
 import scalafx.application.JFXApp
 import scalafx.application.JFXApp.PrimaryStage
 import scalafx.geometry.Insets
@@ -18,18 +19,18 @@ class MazeTest extends FunSuite {
   test ("maze generation test") {
     val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
 
-    Generator.generateMaze(5, iterator.next) should be (expected)
+    Generator.generateCells(5, iterator.next) should be (expected)
 
   }
 }
 
 object DrawApp extends JFXApp {
 
-  val mazeSize = 5
+  val mazeSize = 15
 
   val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
 
-  val cells = Generator.generateMaze(mazeSize, {iterator.next()})
+  val cells = Generator.generateCells(mazeSize, {Random.nextGaussian() > 0.2})
 
   val canvasSize = 300
   val canvas = new Canvas(canvasSize, canvasSize)
