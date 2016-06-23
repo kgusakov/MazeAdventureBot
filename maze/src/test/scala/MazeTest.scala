@@ -1,4 +1,4 @@
-import java.io.File
+import java.io.{File, FileOutputStream}
 import java.util.UUID
 import javax.imageio.ImageIO
 
@@ -46,8 +46,8 @@ class MazeTest extends FunSuite {
   }
 
   test ("check drawner") {
-
-    Drawer.drawMaze(Generator.generateMaze(10, Random.nextGaussian() > 0.2, SortedSet(1,2)))
+    val out = new FileOutputStream("/tmp/maze/maze.png")
+    Drawer.drawMaze(Generator.generateMaze(10, Random.nextGaussian() > 0.2, SortedSet(1,2)), out)
   }
 
 

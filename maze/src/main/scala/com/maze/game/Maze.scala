@@ -2,6 +2,7 @@ package com.maze.game
 
 import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
+import java.io.OutputStream
 import java.util.UUID
 
 import com.maze.game.Directions.Direction
@@ -201,7 +202,7 @@ object Generator {
 
 object Drawer extends LazyLogging {
 
-  def drawMaze(maze: Maze) = {
+  def drawMaze(maze: Maze, out: OutputStream) = {
     val cells = maze.cells
     val mazeSize = maze.cells.length
 
@@ -221,7 +222,7 @@ object Drawer extends LazyLogging {
       drawPlayer(gc, (player.position.x * cellSize + cellSize / 2, player.position.y * cellSize + cellSize / 2), cellSize)
     }
     gc.dispose()
-    javax.imageio.ImageIO.write(canvas, "png", new java.io.File(UUID.randomUUID().toString))
+    javax.imageio.ImageIO.write(canvas, "png", out)
     logger.debug("Maze drawed")
   }
 
@@ -239,13 +240,13 @@ object Drawer extends LazyLogging {
     gc.setColor(Color.WHITE)
     cell.walls.foreach {
       case Walls.Up =>
-        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize, position._2 - cellSize / 2)
+        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize / 2, position._2 - cellSize / 2)
       case Walls.Down =>
-        gc.drawLine(position._1 - cellSize / 2, position._2 + cellSize / 2, position._1 + cellSize, position._2 + cellSize / 2)
+        gc.drawLine(position._1 - cellSize / 2, position._2 + cellSize / 2, position._1 + cellSize / 2, position._2 + cellSize / 2)
       case Walls.Left =>
-        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 - cellSize / 2, position._2 + cellSize)
+        gc.drawLine(position._1 - cellSize / 2, position._2 - cellSize / 2, position._1 - cellSize / 2, position._2 + cellSize / 2)
       case Walls.Right =>
-        gc.drawLine(position._1 + cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize / 2, position._2 + cellSize)
+        gc.drawLine(position._1 + cellSize / 2, position._2 - cellSize / 2, position._1 + cellSize / 2, position._2 + cellSize / 2)
     }
   }
 }
