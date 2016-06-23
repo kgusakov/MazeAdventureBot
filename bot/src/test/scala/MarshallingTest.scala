@@ -1,12 +1,24 @@
+import java.io.{File, FileInputStream}
 import java.net.URL
+import java.nio.file.{Files, Paths}
+import java.util.UUID
 
-import com.stackmob.newman.response.{HttpResponse, HttpResponseCode}
 import org.scalatest.FunSuite
 import org.scalatest._
 import Matchers._
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.HttpHeader.ParsingResult.Ok
+import akka.http.scaladsl.model.Multipart.FormData.BodyPart
+import akka.http.scaladsl.model._
+import akka.stream.scaladsl.{FileIO, Source}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import akka.util.ByteString
 import com.maze.bot.telegram.api.{Response, SendMessage, TelegramApiClient}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Millis, Seconds, Span}
+
+import scala.concurrent.Await
 
 /**
   * Created by kgusakov on 21.05.16.
@@ -115,6 +127,16 @@ class MarshallingTest extends FunSuite with ScalaFutures {
     val result = failJson2.decodeValidation[Response]
     println (failJson2.decodeEither[Response].leftSideValue)
     failJson2.decodeValidation[Response].isSuccess should be (true)
+  }
+
+  ignore ("multipart") {
+    import argonaut._, Argonaut._
+    import scala.concurrent.duration._
+    val chatId = -121062390
+    val fileName = "/tmp/t.png"
+
+    val response = Await.result(TelegramApiClient.sendPhoto(chatId, new FileInputStream(fileName)), 5 seconds)
+    println(response.entity)
   }
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(timeout =  Span(5, Seconds), interval = Span(500, Millis))

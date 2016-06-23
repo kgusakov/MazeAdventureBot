@@ -1,12 +1,16 @@
 package com.maze.bot.telegram.api
 
-import java.net.URL
-import java.nio.charset.{Charset, StandardCharsets}
+import java.io.{File, InputStream}
+import java.nio.charset.StandardCharsets
 
 import argonaut._
 import Argonaut._
-import com.stackmob.newman.{ApacheHttpClient, Headers}
-import com.stackmob.newman.response.HttpResponse
+import akka.actor.ActorSystem
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.Multipart.FormData.BodyPart
+import akka.http.scaladsl.model.{HttpEntity, _}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import akka.util.ByteString
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.Future
@@ -133,32 +137,60 @@ object SendMessage {
 }
 
 object TelegramApiClient extends LazyLogging {
-  import com.stackmob.newman.dsl._
   import argonaut._, Argonaut._
-
 
   private val baseUri = "https://api.telegram.org/bot180715621:AAFUc2sYIfo4FYww_01v3VGZXiB_WcPPL4k"
   private val getUpdatesUri = s"$baseUri/getUpdates"
   private val sendMessageUri = s"$baseUri/sendMessage"
+  private val sendPhotoUri = s"$baseUri/sendPhoto"
 
-  implicit private val httpClient = new ApacheHttpClient
+  private implicit val system = ActorSystem("system")
+  private implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(system))
+  private val http = Http(system)
+
   import scala.concurrent.ExecutionContext.Implicits.global
 
+
   def getUpdates(updateId: Int = 0): Future[Option[List[Update]]] = {
-    GET(new URL(s"${getUpdatesUri}?offset=${updateId}")).apply.map { response =>
-      response.bodyString(StandardCharsets.UTF_8).decodeValidation[Response].fold(
-        {errorMessage =>
-          logger.error(response.bodyString + " " + errorMessage)
-          None
-        },
-        r => Some(r.result))
-    }
+    http.singleRequest(HttpRequest(uri = s"$getUpdatesUri?offset=$updateId"))
+      .flatMap(_.entity.dataBytes.runFold(ByteString(""))(_ ++ _))
+      .map(_.decodeString(StandardCharsets.UTF_8.toString))
+      .map {
+        response =>
+          response.decodeValidation[Response].fold(
+            {
+              errorMessage =>
+                logger.error(response + " " + errorMessage)
+                None
+            },
+            r => Some(r.result))
+      }
   }
 
   def sendMessage(message: SendMessage): Future[HttpResponse] = {
-    POST(new URL(sendMessageUri))
-      .addHeaders(Headers(("Content-Type", "application/json")))
-      .setBodyString(message.asJson.nospaces).apply
+    http.singleRequest(HttpRequest(
+      uri = sendMessageUri,
+      method = HttpMethods.POST,
+      entity = HttpEntity(MediaTypes.`application/json`, message.asJson.nospaces)
+    ))
+  }
+
+  def sendPhoto(chatId: Int, photo: InputStream): Future[HttpResponse] = {
+    val photoBytes = Stream.continually(photo.read()).takeWhile(_ != -1).map(_.toByte).toArray
+    val entity = Multipart.FormData(
+      BodyPart.Strict (
+        "chat_id",
+        HttpEntity.Strict(ContentType(MediaTypes.`text/plain`, HttpCharsets.`UTF-8`), ByteString(chatId.toString))
+      ),
+      BodyPart(
+        "photo",
+        HttpEntity(ContentType(MediaTypes.`image/png`), photoBytes), Map("filename" -> "sample.png"))
+    ).toEntity()
+    http.singleRequest(HttpRequest(
+      method = HttpMethods.POST,
+      uri = sendPhotoUri,
+      entity = entity
+    ))
   }
 }
 

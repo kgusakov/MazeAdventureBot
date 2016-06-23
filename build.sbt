@@ -13,8 +13,9 @@ lazy val telegramApi = (project in file("telegramApi")).
   settings(Commons.settings: _*).
   settings(libraryDependencies ++= Seq(
     "io.argonaut" % "argonaut_2.11" % "6.1",
-    "io.megam" % "newman_2.11" % "1.3.12"
+    "com.typesafe.akka" % "akka-http-core_2.11" % "2.4.4"
   ))
+
 lazy val bot = (project in file("bot")).
   settings(Commons.settings: _*).
   dependsOn(maze, telegramApi)
