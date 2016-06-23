@@ -212,14 +212,15 @@ object Drawer extends LazyLogging {
     val gc = canvas.createGraphics()
     gc.setColor(Color.WHITE)
 
-    val cellSize = canvasSize / mazeSize
+    val margin = 10
+    val cellSize = (canvasSize - 2 * margin) / mazeSize
     for (y <- cells.indices) {
       for (x <- cells.indices) {
-        drawCell(gc, (x * cellSize + cellSize / 2, y * cellSize + cellSize / 2), cells(y)(x), cellSize)
+        drawCell(gc, (margin + x * cellSize + cellSize / 2, margin + y * cellSize + cellSize / 2), cells(y)(x), cellSize)
       }
     }
     for (player <- maze.players) {
-      drawPlayer(gc, (player.position.x * cellSize + cellSize / 2, player.position.y * cellSize + cellSize / 2), cellSize)
+      drawPlayer(gc, (margin + player.position.x * cellSize + cellSize / 2, margin + player.position.y * cellSize + cellSize / 2), cellSize)
     }
     gc.dispose()
     javax.imageio.ImageIO.write(canvas, "png", out)
