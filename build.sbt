@@ -1,10 +1,12 @@
+import Commons.Versions._
+
 name := "MazeAdvenureBot"
 
 lazy val maze = (project in file("maze")).
   settings(Commons.settings: _*).
   settings(
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" % "akka-actor_2.11" % "2.4.4"
+      "com.typesafe.akka" %% "akka-actor" % akkaVersion
     )
   ).
   dependsOn(telegramApi)
@@ -12,8 +14,8 @@ lazy val maze = (project in file("maze")).
 lazy val telegramApi = (project in file("telegramApi")).
   settings(Commons.settings: _*).
   settings(libraryDependencies ++= Seq(
-    "io.argonaut" % "argonaut_2.11" % "6.1",
-    "com.typesafe.akka" % "akka-http-core_2.11" % "2.4.4"
+    "io.argonaut" %% "argonaut" % "6.1",
+    "com.typesafe.akka" %% "akka-http-core" % akkaVersion
   ))
 
 lazy val bot = (project in file("bot")).
