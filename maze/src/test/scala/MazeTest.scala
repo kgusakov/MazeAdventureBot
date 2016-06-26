@@ -45,7 +45,7 @@ class MazeTest extends FunSuite {
     }
   }
 
-  test ("check drawner") {
+  ignore ("check drawner") {
     val out = new FileOutputStream("/tmp/maze/maze.png")
     Drawer.drawMaze(Generator.generateMaze(10, Random.nextGaussian() > 0.2, SortedSet(1,2)), out)
   }
