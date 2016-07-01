@@ -2,11 +2,12 @@ import java.io.{File, FileOutputStream}
 import java.util.UUID
 import javax.imageio.ImageIO
 
-import com.maze.game.{Items, _}
+import com.maze.game.{Items, Results, _}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.util.{Left, Right}
 import Matchers._
+import com.maze.game.Results.{NewCell, Wall, Win}
 
 import scala.collection.mutable
 import scala.collection.immutable.SortedSet
@@ -35,12 +36,18 @@ class MazeTest extends FunSuite {
     for (i <- 0 to 1000) {
       val game = Game(SortedSet(1))
       game.move(1, Directions.Up) match {
-        case Left(s) => game.move(1, Directions.Up) should be ('left)
-        case Right(cell) => game.move(1, Directions.Down) should be ('right)
+        case Wall => game.move(1, Directions.Up) should be (Wall)
+        case NewCell(_) | Win(_) => game.move(1, Directions.Down) should matchPattern {
+          case NewCell(_) =>
+          case Win(_) =>
+        }
       }
       game.move(1, Directions.Right) match {
-        case Left(s) => game.move(1, Directions.Right) should be ('left)
-        case Right(cell) => game.move(1, Directions.Left) should be ('right)
+        case Wall => game.move(1, Directions.Right) should be (Wall)
+        case NewCell(_) | Win(_) => game.move(1, Directions.Left) should matchPattern {
+          case NewCell(_) =>
+          case Win(_) =>
+        }
       }
     }
   }

@@ -1,14 +1,15 @@
 package com.maze.bot
 
-import java.io.{FileOutputStream, OutputStream, Reader}
+import java.io._
 import java.util.Properties
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
 import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient}
 import com.maze.bot.telegram.api.TelegramApiClient._
-import com.maze.game.{Directions, Game}
+import com.maze.game.{Directions, Drawer, Game, Maze}
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Chest, Exit}
+import com.maze.game.Results.{NewCell, NotYourTurn, Wall, Win}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.immutable.SortedSet
@@ -17,6 +18,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.io.Source
+import scalaz.Scalaz._
 
 object Bot extends App with LazyLogging  {
 
@@ -80,11 +82,14 @@ object Bot extends App with LazyLogging  {
   case class StartGame(chatId: Int, userId: Int)
   case class EndGame(chatId: Int, userId: Int)
   case class MoveAction(chatId: Int, userId: Int, direction: Direction)
+  case class WinGame(chatId: Int, snapshot: Maze)
 
   case class PendingGame(chatId: Int, author: Int, players: mutable.ArrayBuffer[Int])
   case class ActiveGame(author: Int, game: ActorRef)
 
   class GameManager extends Actor with ActorLogging {
+
+    import resource._
 
     val pendingGames = mutable.HashMap[Int, PendingGame]()
     val activeGames = mutable.HashMap[Int, ActiveGame]()
@@ -130,6 +135,14 @@ object Bot extends App with LazyLogging  {
           } else {
             sendMessage (SendMessage(chatId, "Only author of the game can finish it"))
           }
+      case WinGame(chatId, snapshot) =>
+        activeGames.get(chatId).foreach(_.game ! PoisonPill)
+        activeGames -= chatId
+        for (output <- managed(new ByteArrayOutputStream())) {
+          Drawer.drawMaze(snapshot, output)
+          sendPhoto(chatId, output.toByteArray)
+        }
+        sendMessage(SendMessage(chatId, "We have a winner"))
       case MoveAction(chatId, userId, direction) =>
         activeGames.get(chatId) match {
           case Some(game) => game.game ! Move(userId, direction)
@@ -146,47 +159,34 @@ object Bot extends App with LazyLogging  {
     override def receive: Receive = {
       case Move(playerId, direction) =>
         val message = game.move(playerId, direction) match {
-          case Left(message) => message
-          case Right(Some(cell)) =>
-            "You found following items: " + cell.item.map {
+          case NotYourTurn => "Sorry, not your turn".some
+          case NewCell(items) =>
+            if (items isEmpty) "You moved to empty cell ".some
+            else "You found following items: " + items.map {
               case Exit => "Exit"
               case Chest => "Chest"
-            }.mkString(",")
-          case Right(None) =>
-            "Sorry dude, there is a wall"
+            }.mkString(",").some
+          case Wall => "Sorry dude, there is a wall".some
+          case Win(playerId) =>
+            sender() ! WinGame(chatId, game.initialSnapshot)
+            none
         }
-        TelegramApiClient sendMessage SendMessage(chatId, message)
+        for (_ <- message) TelegramApiClient sendMessage SendMessage(chatId, _)
     }
   }
 }
 
 object PropsStore {
+  import resource._
 
   private val fileName = "props.store"
 
   val properties = new Properties()
 
-  {
-    var reader: Reader = null
-    try {
-      reader = Source.fromFile(fileName).reader()
-      properties.load(reader)
-    } catch {
-      case _ =>
-    } finally {
-      if (reader != null) reader close
-    }
-  }
+  for (reader <- managed(Source.fromFile(fileName).reader())) properties.load(reader)
 
   def save(key: String, value: String): Unit = {
     properties.put(key, value)
-    var out: OutputStream = null
-    try {
-      out = new FileOutputStream(fileName)
-      properties.store(out, null)
-    } finally {
-      out close
-    }
-
+    for (out <- managed(new FileOutputStream(fileName))) properties.store(out, null)
   }
 }

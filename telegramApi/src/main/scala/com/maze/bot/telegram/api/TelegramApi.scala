@@ -175,8 +175,7 @@ object TelegramApiClient extends LazyLogging {
     ))
   }
 
-  def sendPhoto(chatId: Int, photo: InputStream): Future[HttpResponse] = {
-    val photoBytes = Stream.continually(photo.read()).takeWhile(_ != -1).map(_.toByte).toArray
+  def sendPhoto(chatId: Int, photo: Array[Byte]): Future[HttpResponse] = {
     val entity = Multipart.FormData(
       BodyPart.Strict (
         "chat_id",
@@ -184,7 +183,7 @@ object TelegramApiClient extends LazyLogging {
       ),
       BodyPart(
         "photo",
-        HttpEntity(ContentType(MediaTypes.`image/png`), photoBytes), Map("filename" -> "sample.png"))
+        HttpEntity(ContentType(MediaTypes.`image/png`), photo), Map("filename" -> "sample.png"))
     ).toEntity()
     http.singleRequest(HttpRequest(
       method = HttpMethods.POST,

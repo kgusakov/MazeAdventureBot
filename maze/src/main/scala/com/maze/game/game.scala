@@ -2,6 +2,7 @@ package com.maze.game
 
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Exit, Item}
+import com.maze.game.Results._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
@@ -16,6 +17,14 @@ object Directions {
   case object Right extends Direction
 }
 
+object Results {
+  sealed trait Result
+  case object Wall extends Result
+  case class Win(playerId: Int) extends Result
+  case class NewCell(items: Set[Item]) extends Result
+  case object NotYourTurn extends Result
+}
+
 case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
 
   import Game.direction2wall
@@ -26,12 +35,12 @@ case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
 
   private var currentPlayer: Int = playerIds.head
 
-  def move(playerId: Int, direction: Direction): Either[String, Option[Cell]] = {
+  def move(playerId: Int, direction: Direction): Result = {
     if (currentPlayer == playerId) {
       currentPlayer = nextPlayer
       logger.debug(s"Player ${maze.player(playerId)} is moving to ${direction}")
       val pos = maze.player(playerId).position
-      if (maze.cells(pos.y)(pos.x) ?| direction) Right(None)
+      if (maze.cells(pos.y)(pos.x) ?| direction) Wall
       else {
         direction match {
           case Directions.Up => pos.y -= 1
@@ -39,10 +48,12 @@ case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
           case Directions.Left => pos.x -= 1
           case Directions.Right => pos.x += 1
         }
-        Right(Some(maze.cells(pos.y)(pos.x)))
+        val newCell = maze.cells(pos.y)(pos.x)
+        if (newCell.item contains Exit) Win(playerId)
+        else NewCell(newCell.item.toSet)
       }
     }
-    else Left("Not you turn")
+    else NotYourTurn
   }
 
   def checkCurrentPlayer = currentPlayer
