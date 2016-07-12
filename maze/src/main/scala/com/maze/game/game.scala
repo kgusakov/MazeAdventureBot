@@ -31,7 +31,7 @@ case class Game(playerIds: SortedSet[Int]) extends LazyLogging {
 
   private val maze = Generator.generateMaze(10, Random.nextGaussian() > 0.2, playerIds)
   // snapshot for further usage in pictures
-  private val initMazeSnapshot = Maze(maze.cells.map(_.map(_.copy())), maze.players.map(_.copy()))
+  private val initMazeSnapshot = Maze(maze.cells.map(_.map(_.copy())), maze.players.map(p => p.copy(position = p.position.copy())))
 
   private var currentPlayer: Int = playerIds.head
 
