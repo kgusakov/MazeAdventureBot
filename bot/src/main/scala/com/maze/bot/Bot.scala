@@ -4,7 +4,7 @@ import java.io._
 import java.util.Properties
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
-import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient}
+import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient, User}
 import com.maze.bot.telegram.api.TelegramApiClient._
 import com.maze.game.{Directions, Drawer, Game, Maze}
 import com.maze.game.Directions.Direction
@@ -51,17 +51,17 @@ object Bot extends App with LazyLogging {
             logger.info("Received update: " + update)
             update.message match {
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/new") =>
-                gameManager ! NewGame(chat.id, from.id)
+                gameManager ! NewGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/join") =>
-                gameManager ! JoinGame(chat.id, from.id)
+                gameManager ! JoinGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/start") =>
-                gameManager ! StartGame(chat.id, from.id)
+                gameManager ! StartGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/end") =>
-                gameManager ! EndGame(chat.id, from.id)
+                gameManager ! EndGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/move") =>
                 toMove(text) match {
                   case Left(errorMessage) => TelegramApiClient.sendMessage(SendMessage(chat.id, errorMessage))
-                  case Right(direction) => gameManager ! MoveAction(chat.id, from.id, direction)
+                  case Right(direction) => gameManager ! MoveAction(chat.id, from, direction)
                 }
               case message@Message(_, _, _, _, _, _) =>
                 logger.warn(message.toString)
@@ -77,24 +77,24 @@ object Bot extends App with LazyLogging {
         case None =>
       }
     } catch {
-      _ =>
+      case _: Throwable =>
     }
 
   }
 
-  case class NewGame(chatId: Int, userId: Int)
+  case class NewGame(chatId: Int, user: User)
 
-  case class JoinGame(chatId: Int, userId: Int)
+  case class JoinGame(chatId: Int, user: User)
 
-  case class StartGame(chatId: Int, userId: Int)
+  case class StartGame(chatId: Int, user: User)
 
-  case class EndGame(chatId: Int, userId: Int)
+  case class EndGame(chatId: Int, user: User)
 
-  case class MoveAction(chatId: Int, userId: Int, direction: Direction)
+  case class MoveAction(chatId: Int, user: User, direction: Direction)
 
   case class WinGame(chatId: Int, snapshot: Maze)
 
-  case class PendingGame(chatId: Int, author: Int, players: mutable.ArrayBuffer[Int])
+  case class PendingGame(chatId: Int, author: User, players: ArrayBuffer[User])
 
   case class ActiveGame(author: Int, game: ActorRef)
 
@@ -106,28 +106,28 @@ object Bot extends App with LazyLogging {
     val activeGames = mutable.HashMap[Int, ActiveGame]()
 
     override def receive: Receive = {
-      case NewGame(chatId, userId) =>
+      case NewGame(chatId, user) =>
         if ((pendingGames contains chatId) || (activeGames contains chatId))
           sendMessage(SendMessage(chatId, "This chat already have one game"))
         else {
-          pendingGames += chatId -> PendingGame(chatId, userId, ArrayBuffer(userId))
+          pendingGames += chatId -> PendingGame(chatId, user, ArrayBuffer(user))
           sendMessage(SendMessage(chatId, "Game successfully created, waiting for players"))
         }
-      case JoinGame(chatId, userId) =>
+      case JoinGame(chatId, user) =>
         if (pendingGames contains chatId) {
-          pendingGames(chatId).players += userId
+          pendingGames(chatId).players += user
           sendMessage(SendMessage(chatId, "Welcome to game! Waiting for other players"))
         } else if (activeGames contains chatId) {
           sendMessage(SendMessage(chatId, "Game already started, sorry"))
         } else
           sendMessage(SendMessage(chatId, "There are no any games to join in current chat"))
-      case StartGame(chatId, userId) =>
+      case StartGame(chatId, user) =>
         if (pendingGames contains chatId) {
-          if (userId == pendingGames(chatId).author) {
+          if (user == pendingGames(chatId).author) {
             sendMessage(SendMessage(chatId, "Game started, let it bleed!"))
             activeGames += chatId -> {
               val game = pendingGames(chatId)
-              ActiveGame(userId, context.system.actorOf(Props(new GameMaster(chatId, game.players.toSet))))
+              ActiveGame(user.id, context.system.actorOf(Props(new GameMaster(chatId, game.players.toSet))))
             }
           } else {
             sendMessage(SendMessage(chatId, "Only creator of the game can start it"))
@@ -156,22 +156,22 @@ object Bot extends App with LazyLogging {
           sendPhoto(chatId, output.toByteArray)
         }
         sendMessage(SendMessage(chatId, "We have a winner"))
-      case MoveAction(chatId, userId, direction) =>
+      case MoveAction(chatId, user, direction) =>
         activeGames.get(chatId) match {
-          case Some(game) => game.game ! Move(userId, direction)
+          case Some(game) => game.game ! Move(user, direction)
           case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
         }
     }
   }
 
-  case class Move(playerId: Int, direction: Direction)
+  case class Move(user: User, direction: Direction)
 
-  class GameMaster(chatId: Int, players: Set[Int]) extends Actor {
-    val game = new Game(SortedSet(players.toList: _*))
+  class GameMaster(chatId: Int, players: Set[User]) extends Actor {
+    val game = new Game(SortedSet(players.map(_.id).toList: _*))
 
     override def receive: Receive = {
-      case Move(playerId, direction) =>
-        val message = game.move(playerId, direction) match {
+      case Move(user, direction) =>
+        val message = game.move(user.id, direction) match {
           case NotYourTurn => "Sorry, not your turn".some
           case NewCell(items) =>
             if (items isEmpty) "You moved to empty cell ".some
