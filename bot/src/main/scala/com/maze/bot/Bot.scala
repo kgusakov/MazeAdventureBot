@@ -92,7 +92,7 @@ object Bot extends App with LazyLogging {
 
   case class MoveAction(chatId: Int, user: User, direction: Direction)
 
-  case class WinGame(chatId: Int, snapshot: Maze)
+  case class WinGame(chatId: Int, snapshot: Maze, winner: User)
 
   case class PendingGame(chatId: Int, author: User, players: ArrayBuffer[User])
 
@@ -127,7 +127,8 @@ object Bot extends App with LazyLogging {
             sendMessage(SendMessage(chatId, "Game started, let it bleed!"))
             activeGames += chatId -> {
               val game = pendingGames(chatId)
-              ActiveGame(user.id, context.system.actorOf(Props(new GameMaster(chatId, game.players.toSet))))
+              ActiveGame(user.id, context.system.actorOf(Props(
+                new GameMaster(chatId, game.players.map(p => p.id -> p).toMap))))
             }
           } else {
             sendMessage(SendMessage(chatId, "Only creator of the game can start it"))
@@ -148,7 +149,7 @@ object Bot extends App with LazyLogging {
           } else {
             sendMessage(SendMessage(chatId, "Only author of the game can finish it"))
           }
-      case WinGame(chatId, snapshot) =>
+      case WinGame(chatId, snapshot, winner) =>
         activeGames.get(chatId).foreach(_.game ! PoisonPill)
         activeGames -= chatId
         for (output <- managed(new ByteArrayOutputStream())) {
@@ -166,8 +167,8 @@ object Bot extends App with LazyLogging {
 
   case class Move(user: User, direction: Direction)
 
-  class GameMaster(chatId: Int, players: Set[User]) extends Actor {
-    val game = new Game(SortedSet(players.map(_.id).toList: _*))
+  class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
+    val game = new Game(SortedSet(players.keySet.toList: _*))
 
     override def receive: Receive = {
       case Move(user, direction) =>
@@ -181,7 +182,7 @@ object Bot extends App with LazyLogging {
             }.mkString(",").some
           case Wall => "Sorry dude, there is a wall".some
           case Win(playerId) =>
-            sender() ! WinGame(chatId, game.initialSnapshot)
+            sender() ! WinGame(chatId, game.initialSnapshot, players(playerId))
             none
         }
         for (_ <- message) TelegramApiClient sendMessage SendMessage(chatId, _)
