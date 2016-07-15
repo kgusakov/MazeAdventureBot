@@ -149,23 +149,30 @@ object Bot extends App with LazyLogging {
       case WinGame(chatId, snapshot, winner) =>
         activeGames.get(chatId).foreach(_.game ! PoisonPill)
         activeGames -= chatId
-        for (output <- managed(new ByteArrayOutputStream())) {
-          Drawer.drawMaze(snapshot, output)
-          sendPhoto(chatId, output.toByteArray)
-        }
-        sendMessage(SendMessage(chatId, "We have a winner"))
+        sendMaze(snapshot, chatId)
+        sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
       case MoveAction(chatId, user, direction) =>
         activeGames.get(chatId) match {
           case Some(game) => game.game ! Move(user, direction)
           case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
         }
     }
+
+    private def sendMaze(snapshot: Maze, chatId: Int) =
+      for (output <- managed(new ByteArrayOutputStream())) {
+        Drawer.drawMaze(snapshot, output)
+        sendPhoto(chatId, output.toByteArray)
+      }
   }
 
   case class Move(user: User, direction: Direction)
 
   class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
     val game = new Game(SortedSet(players.keySet.toList: _*))
+
+    override def preStart(): Unit = {
+      TelegramApiClient sendMessage SendMessage(chatId, nextUserPrompt)
+    }
 
     override def receive: Receive = {
       case Move(user, direction) =>
@@ -182,8 +189,12 @@ object Bot extends App with LazyLogging {
             sender() ! WinGame(chatId, game.initialSnapshot, players(playerId))
             none
         }
-        for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, m)
+        for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
     }
+
+    def nextUser = players(game.checkCurrentPlayer)
+
+    def nextUserPrompt = s"Your turn @${nextUser.username}"
   }
 
 }
