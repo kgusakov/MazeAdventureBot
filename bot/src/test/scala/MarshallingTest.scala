@@ -129,15 +129,15 @@ class MarshallingTest extends FunSuite with ScalaFutures {
     failJson2.decodeValidation[Response].isSuccess should be (true)
   }
 
-  ignore ("multipart") {
-    import argonaut._, Argonaut._
-    import scala.concurrent.duration._
-    val chatId = -121062390
-    val fileName = "/tmp/t.png"
-
-    val response = Await.result(TelegramApiClient.sendPhoto(chatId, new FileInputStream(fileName)), 5 seconds)
-    println(response.entity)
-  }
+//  ignore ("multipart") {
+//    import argonaut._, Argonaut._
+//    import scala.concurrent.duration._
+//    val chatId = -121062390
+//    val fileName = "/tmp/t.png"
+//
+//    val response = Await.result(TelegramApiClient.sendPhoto(chatId, new FileInputStream(fileName)), 5 seconds)
+//    println(response.entity)
+//  }
 
   override implicit def patienceConfig: PatienceConfig = PatienceConfig(timeout =  Span(5, Seconds), interval = Span(500, Millis))
 }

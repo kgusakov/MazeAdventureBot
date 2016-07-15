@@ -31,16 +31,13 @@ object Bot extends App with LazyLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
 
   def toMove(input: String): Either[String, Direction] = {
-    val splitted = input.split(" ")
-    if (splitted.length == 2)
-      splitted(1) match {
-        case "up" => Right(Directions.Up)
-        case "down" => Right(Directions.Down)
-        case "right" => Right(Directions.Right)
-        case "left" => Right(Directions.Left)
+      input.split("@")(0) match {
+        case "/up" => Right(Directions.Up)
+        case "/down" => Right(Directions.Down)
+        case "/right" => Right(Directions.Right)
+        case "/left" => Right(Directions.Left)
         case _ => Left("Wrong direction")
       }
-    else Left("Wrong direction")
   }
 
   while (true) {
@@ -58,7 +55,7 @@ object Bot extends App with LazyLogging {
                 gameManager ! StartGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/end") =>
                 gameManager ! EndGame(chat.id, from)
-              case Message(_, from, chat, _, Some(text), _) if text.startsWith("/move") =>
+              case Message(_, from, chat, _, Some(text), _) if toMove(text).isRight =>
                 toMove(text) match {
                   case Left(errorMessage) => TelegramApiClient.sendMessage(SendMessage(chat.id, errorMessage))
                   case Right(direction) => gameManager ! MoveAction(chat.id, from, direction)
@@ -172,20 +169,20 @@ object Bot extends App with LazyLogging {
 
     override def receive: Receive = {
       case Move(user, direction) =>
-        val message = game.move(user.id, direction) match {
+        val message: Option[String] = game.move(user.id, direction) match {
           case NotYourTurn => "Sorry, not your turn".some
           case NewCell(items) =>
             if (items isEmpty) "You moved to empty cell ".some
-            else "You found following items: " + items.map {
+            else ("You found following items: " + items.map {
               case Exit => "Exit"
               case Chest => "Chest"
-            }.mkString(",").some
+            }.mkString(",")).some
           case Wall => "Sorry dude, there is a wall".some
           case Win(playerId) =>
             sender() ! WinGame(chatId, game.initialSnapshot, players(playerId))
             none
         }
-        for (_ <- message) TelegramApiClient sendMessage SendMessage(chatId, _)
+        for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, m)
     }
   }
 
