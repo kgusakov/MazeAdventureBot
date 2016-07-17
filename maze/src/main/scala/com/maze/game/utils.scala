@@ -8,16 +8,15 @@ import com.maze.game.Items.Exit
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.collection.immutable.SortedSet
 import scala.collection.mutable
 import scala.util.Random
 
 object Generator {
 
-  def generateMaze(mazeSize: Int, wallChance: => Boolean, playerIds: SortedSet[Int]): Maze = {
+  def generateGame(mazeSize: Int, wallChance: => Boolean, playerIds: Set[Int]): Game = {
     val r = Random
-    Maze(
-      Generator.generateCells(mazeSize, wallChance),
+    Game(
+      Maze(Generator.generateCells(mazeSize, wallChance)),
       playerIds.map(id => Player(id,
         Position(r.nextInt(mazeSize), r.nextInt(mazeSize)))))
   }
@@ -99,9 +98,9 @@ object Generator {
 
 object Drawer extends LazyLogging {
 
-  def drawMaze(maze: Maze, out: OutputStream) = {
-    val cells = maze.cells
-    val mazeSize = maze.cells.length
+  def drawGame(game: Game, out: OutputStream) = {
+    val cells = game.maze.cells
+    val mazeSize = game.maze.cells.length
 
     val canvasSize = 300
 
@@ -116,7 +115,7 @@ object Drawer extends LazyLogging {
         drawCell(gc, (margin + x * cellSize + cellSize / 2, margin + y * cellSize + cellSize / 2), cells(y)(x), cellSize)
       }
     }
-    for (player <- maze.players) {
+    for (player <- game.players) {
       drawPlayer(gc, (margin + player.position.x * cellSize + cellSize / 2, margin + player.position.y * cellSize + cellSize / 2), cellSize)
     }
     gc.dispose()

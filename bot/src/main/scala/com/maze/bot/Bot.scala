@@ -6,7 +6,7 @@ import java.util.Properties
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props}
 import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient, User}
 import com.maze.bot.telegram.api.TelegramApiClient._
-import com.maze.game.{Directions, Drawer, Game, Maze}
+import com.maze.game._
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Chest, Exit}
 import com.maze.game.Results.{NewCell, NotYourTurn, Wall, Win}
@@ -18,6 +18,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.io.Source
+import scala.util.Random
 import scalaz.Scalaz._
 
 object Bot extends App with LazyLogging {
@@ -89,7 +90,7 @@ object Bot extends App with LazyLogging {
 
   case class MoveAction(chatId: Int, user: User, direction: Direction)
 
-  case class WinGame(chatId: Int, snapshot: Maze, winner: User)
+  case class WinGame(chatId: Int, snapshot: Game, winner: User)
 
   case class PendingGame(chatId: Int, author: User, players: ArrayBuffer[User])
 
@@ -149,7 +150,7 @@ object Bot extends App with LazyLogging {
       case WinGame(chatId, snapshot, winner) =>
         activeGames.get(chatId).foreach(_.game ! PoisonPill)
         activeGames -= chatId
-        sendMaze(snapshot, chatId)
+        sendStartingPositionsPicture(snapshot, chatId)
         sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
       case MoveAction(chatId, user, direction) =>
         activeGames.get(chatId) match {
@@ -158,9 +159,9 @@ object Bot extends App with LazyLogging {
         }
     }
 
-    private def sendMaze(snapshot: Maze, chatId: Int) =
+    private def sendStartingPositionsPicture(snapshot: Game, chatId: Int) =
       for (output <- managed(new ByteArrayOutputStream())) {
-        Drawer.drawMaze(snapshot, output)
+        Drawer.drawGame(snapshot, output)
         sendPhoto(chatId, output.toByteArray)
       }
   }
@@ -168,9 +169,12 @@ object Bot extends App with LazyLogging {
   case class Move(user: User, direction: Direction)
 
   class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
-    val game = new Game(SortedSet(players.keySet.toList: _*))
+    var game: Game = _
+    var startingPositionsSnapshot: Game = _
 
     override def preStart(): Unit = {
+      game = Generator.generateGame(10, Random.nextGaussian() > 0.4, players.keySet)
+      startingPositionsSnapshot = game.snapshot
       TelegramApiClient sendMessage SendMessage(chatId, nextUserPrompt)
     }
 
@@ -186,7 +190,7 @@ object Bot extends App with LazyLogging {
             }.mkString(",")).some
           case Wall => "Sorry dude, there is a wall".some
           case Win(playerId) =>
-            sender() ! WinGame(chatId, game.initialSnapshot, players(playerId))
+            sender() ! WinGame(chatId, startingPositionsSnapshot, players(playerId))
             none
         }
         for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")

@@ -4,6 +4,7 @@ import com.maze.game.Items.Item
 import com.maze.game.Walls.Wall
 
 import scala.collection.mutable
+import scala.math.Ordering
 
 object Walls {
   sealed trait Wall
@@ -31,9 +32,14 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[
   }
 }
 
-case class Maze(cells: Array[Array[Cell]], players: Set[Player]) {
-  def player(id: Int) = players.find(_.id == id).get
-}
+case class Maze(cells: Array[Array[Cell]])
 
 case class Position(var x: Int, var y: Int)
 case class Player(id: Int, position: Position)
+
+object Player {
+  trait PlayerOrdering extends Ordering[Player] {
+    def compare(x: Player, y: Player) = x.id.compare(y.id)
+  }
+  implicit object Player extends PlayerOrdering
+}

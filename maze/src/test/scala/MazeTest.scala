@@ -1,26 +1,14 @@
-import java.io.{File, FileOutputStream}
-import java.util.UUID
-import javax.imageio.ImageIO
-
-import com.maze.game.{Items, Results, _}
+import com.maze.game.{Results, _}
 import org.scalatest.{FunSuite, Matchers}
 
-import scala.util.{Left, Right}
 import Matchers._
-import com.maze.game.Results.{NewCell, Wall, Win}
+import com.maze.game.Items.{Chest, Exit}
+import com.maze.game.Walls.{Down, Left, Right, Up}
+import utils.MazeDescriptionDSL._
 
-import scala.collection.mutable
-import scala.collection.immutable.SortedSet
 import scala.util.Random
 
 class MazeTest extends FunSuite {
-  val expected = mutable.ArraySeq(mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Left),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right, com.maze.game.Walls.Down),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Up),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Up, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Left, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Right, com.maze.game.Walls.Left),mutable.Set())), mutable.ArraySeq(Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left, com.maze.game.Walls.Up),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Left),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down),mutable.Set()), Cell(mutable.Set(com.maze.game.Walls.Down, com.maze.game.Walls.Right),mutable.Set())))
-
-  ignore ("maze generation test") {
-    val iterator = Stream.continually(List(true, true, true, false, false).toStream).flatten.iterator
-
-    Generator.generateCells(5, iterator.next) should be (expected)
-  }
 
   test ("maze generic walls test") {
     for (i <- 0 to 1000) {
@@ -32,32 +20,31 @@ class MazeTest extends FunSuite {
     }
   }
 
-  test ("game movement") {
-    for (i <- 0 to 1000) {
-      val game = Game(SortedSet(1))
-      game.move(1, Directions.Up) match {
-        case Wall => game.move(1, Directions.Up) should be (Wall)
-        case NewCell(_) | Win(_) => game.move(1, Directions.Down) should matchPattern {
-          case NewCell(_) =>
-          case Win(_) =>
-        }
-      }
-      game.move(1, Directions.Right) match {
-        case Wall => game.move(1, Directions.Right) should be (Wall)
-        case NewCell(_) | Win(_) => game.move(1, Directions.Left) should matchPattern {
-          case NewCell(_) =>
-          case Win(_) =>
-        }
-      }
-    }
+  test ("check movement to empty cell") {
+    val game = g (
+      r ( c(Up, Left)(),   c(Up, Right)() ),
+      r ( c(Left)(),       c(Right)()),
+      r ( c(Left, Down)(), c(Right, Down)(Exit))
+    )(p(1, 0, 0))
+    game.move(1, Directions.Right) should be (Results.NewCell(Set.empty))
   }
 
-  ignore ("check drawner") {
-    val out = new FileOutputStream("/tmp/maze/maze.png")
-    Drawer.drawMaze(Generator.generateMaze(10, Random.nextGaussian() > 0.2, SortedSet(1,2)), out)
+  test ("check movement to wall") {
+    val game = g (
+      r ( c(Up, Left)(),   c(Up, Right)() ),
+      r ( c(Left)(),       c(Right)()),
+      r ( c(Left, Down)(), c(Right, Down)(Exit))
+    )(p(1, 0, 0))
+    game.move(1, Directions.Left) should be (Results.Wall)
   }
 
-
-
+  test ("check winner") {
+    val game = g (
+      r ( c(Up, Left)(Chest), c(Up)(), c(Up, Right)() ),
+      r ( c(Left)(),          c()(),   c(Right)()),
+      r ( c(Left, Down)(),    c(Down)(),   c(Right, Down)(Exit))
+    )(p(1, 1, 2))
+    game.move(1, Directions.Right) should be (Results.Win(1))
+  }
 
 }
