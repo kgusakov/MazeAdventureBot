@@ -1,7 +1,7 @@
 package com.maze.game
 
 import com.maze.game.Directions.Direction
-import com.maze.game.Items.{Exit, Item}
+import com.maze.game.Items.{Chest, Exit, Item}
 import com.maze.game.Results._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
@@ -41,9 +41,15 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
           case Directions.Left => pos.x -= 1
           case Directions.Right => pos.x += 1
         }
-        val newCell = maze.cells(pos.y)(pos.x)
-        if (newCell.item contains Exit) Win(playerId)
-        else NewCell(newCell.item.toSet)
+        maze.cells(pos.y)(pos.x) match {
+          case cell if (cell.item contains Exit) && player(playerId).hasChest =>
+            Win(playerId)
+          case cell if cell.item contains Chest =>
+            player(playerId).hasChest = true
+            cell removeChest()
+            NewCell(cell.item.toSet + Chest)
+          case cell => NewCell(cell.item.toSet)
+        }
       }
     }
     else NotYourTurn

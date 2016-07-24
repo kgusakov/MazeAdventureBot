@@ -17,7 +17,7 @@ object MazeDescriptionDSL {
 
   def r(cells: Cell*): Array[Cell] = Array(cells: _*)
 
-  def p(id: Int, x: Int, y: Int) = Player(id, Position(x, y))
+  def p(id: Int, x: Int, y: Int, hasChest: Boolean) = Player(id, Position(x, y), hasChest)
 
-  def g(rows: Array[Cell]*)(players: Player*) = Game(Maze(Array.empty ++ rows), Set.empty ++ players)
+  def g(rows: Array[Cell]*)(players: Player*) = Game(Maze(Array(rows: _*)), Set(players: _*))
 }

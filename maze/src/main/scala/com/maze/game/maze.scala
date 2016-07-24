@@ -1,6 +1,6 @@
 package com.maze.game
 
-import com.maze.game.Items.Item
+import com.maze.game.Items.{Chest, Item}
 import com.maze.game.Walls.Wall
 
 import scala.collection.mutable
@@ -30,12 +30,17 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[
   def ?|(wall: Wall): Boolean = {
     walls.contains(wall)
   }
+
+  def removeChest() = {
+    item -= Chest
+    this
+  }
 }
 
 case class Maze(cells: Array[Array[Cell]])
 
 case class Position(var x: Int, var y: Int)
-case class Player(id: Int, position: Position)
+case class Player(id: Int, position: Position, var hasChest: Boolean = false)
 
 object Player {
   trait PlayerOrdering extends Ordering[Player] {
