@@ -203,6 +203,25 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       game.maze.cells(1)(1).item should be (Set.empty)
     }
 
+    scenario("taking the chest by injured player") {
+      Given("game with 2 injured players without chest")
+      val players = Array(p(1, 0, 1, false), p(2, 0, 0, false))
+      players.foreach(_.injure())
+      val game = g(
+        r(c(Up, Left)(), c(Up, Right)()),
+        r(c(Left)(), c(Right)(Chest)),
+        r(c(Left, Down)(), c(Right, Down)(Exit))
+      )(players: _*)
+      When("player 1 go to cell with chest")
+      val movementResult = game.move(1, Directions.Right)
+      Then("result should be new cell with chest")
+      movementResult should contain (MovementResults.NewCell(Set(Chest)))
+      And("player 1 should not receive chest in his pocket")
+      players(0).hasChest should be (false)
+      And("chest should not disappear from cell")
+      game.maze.cells(1)(1).item should be (Set(Chest))
+    }
+    
     scenario("win after moving to exit with chest") {
       Given("game with two players where one player already has chest")
       val game = g(
