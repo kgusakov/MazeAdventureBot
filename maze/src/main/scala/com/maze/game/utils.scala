@@ -92,6 +92,9 @@ object Generator {
 
     val edges = cells.head ++ cells.last ++ cells.map(_.head) ++ cells.map(_.last)
     edges(Random.nextInt(edges.length)).item.add(Exit)
+
+    cells(Random.nextInt(cells.length))(Random.nextInt(cells.length)).addChest()
+
     cells
   }
 }

@@ -1,6 +1,6 @@
 package com.maze.game
 
-import com.maze.game.Items.{Chest, Item}
+import com.maze.game.Items.{Chest, Exit, Item}
 import com.maze.game.Walls.Wall
 
 import scala.collection.mutable
@@ -22,6 +22,12 @@ object Items {
 
 case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[Item] = mutable.Set.empty) {
 
+  def hasChest = item contains Chest
+
+  def hasExit = item contains Exit
+
+  def addChest() = item += Chest
+
   def +|=(wall: Wall): Cell = {
     walls += wall
     this
@@ -40,7 +46,27 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[
 case class Maze(cells: Array[Array[Cell]])
 
 case class Position(var x: Int, var y: Int)
-case class Player(id: Int, position: Position, var hasChest: Boolean = false)
+case class Player(id: Int, position: Position, withChest: Boolean = false, withAmmunition: Int = 3) {
+  private var chest = withChest
+  private var ammunition = withAmmunition
+  private var injured = false
+
+  def hasChest = chest
+  def takeChest() { chest = true }
+  def dropChest() { chest = false }
+  def hasAmmo = ammunition > 0
+  def shoot() { if (hasAmmo) ammunition -= 1}
+
+  def injure() {
+    injured = true
+  }
+
+  def isInjured = injured
+
+  def heal() {
+    injured = false
+  }
+}
 
 object Player {
   trait PlayerOrdering extends Ordering[Player] {

@@ -9,10 +9,10 @@ import com.maze.bot.telegram.api.TelegramApiClient._
 import com.maze.game._
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Chest, Exit}
-import com.maze.game.Results.{NewCell, NotYourTurn, Wall, Win}
+import com.maze.game.MovementResults.{NewCell, Wall, Win}
+import com.maze.game.ShootResults.{GameOver, Injured}
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.collection.immutable.SortedSet
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Await
@@ -31,14 +31,24 @@ object Bot extends App with LazyLogging {
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
-  def toMove(input: String): Either[String, Direction] = {
+  def toMove(input: String): Option[Direction] = {
       input.split("@")(0) match {
-        case "/up" => Right(Directions.Up)
-        case "/down" => Right(Directions.Down)
-        case "/right" => Right(Directions.Right)
-        case "/left" => Right(Directions.Left)
-        case _ => Left("Wrong direction")
+        case "/up" => Directions.Up.some
+        case "/down" => Directions.Down.some
+        case "/right" => Directions.Right.some
+        case "/left" => Directions.Left.some
+        case _ => none
       }
+  }
+
+  def toShoot(input: String): Option[Direction] = {
+    input.split("@")(0) match {
+      case "/shootup" => Directions.Up.some
+      case "/shootdown" => Directions.Down.some
+      case "/shootright" => Directions.Right.some
+      case "/shootleft" => Directions.Left.some
+      case _ => none
+    }
   }
 
   while (true) {
@@ -56,13 +66,13 @@ object Bot extends App with LazyLogging {
                 gameManager ! StartGame(chat.id, from)
               case Message(_, from, chat, _, Some(text), _) if text.startsWith("/end") =>
                 gameManager ! EndGame(chat.id, from)
-              case Message(_, from, chat, _, Some(text), _) if toMove(text).isRight =>
-                toMove(text) match {
-                  case Left(errorMessage) => TelegramApiClient.sendMessage(SendMessage(chat.id, errorMessage))
-                  case Right(direction) => gameManager ! MoveAction(chat.id, from, direction)
-                }
-              case message@Message(_, _, _, _, _, _) =>
+              case Message(_, from, chat, _, Some(text), _) if toMove(text).isDefined =>
+                toMove(text).foreach(d => gameManager ! MoveAction(chat.id, from, d))
+              case Message(_, from, chat, _, Some(text), _) if toShoot(text).isDefined =>
+                toShoot(text).foreach(d => gameManager ! ShootAction(chat.id, from, d))
+              case message@Message(_, _, chat, _, _, _) =>
                 logger.warn(message.toString)
+                TelegramApiClient.sendMessage(SendMessage(chat.id, "Wrong command"))
             }
           }
           val nextUpdateId = updates.map(_.updateId).fold(0)((a, b) => math.max(a, b))
@@ -90,7 +100,11 @@ object Bot extends App with LazyLogging {
 
   case class MoveAction(chatId: Int, user: User, direction: Direction)
 
+  case class ShootAction(chatId: Int, user: User, direction: Direction)
+
   case class WinGame(chatId: Int, snapshot: Game, winner: User)
+
+  case class Draw(chatId: Int, snapshot: Game)
 
   case class PendingGame(chatId: Int, author: User, players: ArrayBuffer[User])
 
@@ -152,9 +166,20 @@ object Bot extends App with LazyLogging {
         activeGames -= chatId
         sendStartingPositionsPicture(snapshot, chatId)
         sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
+      case Draw(chatId, snapshot) =>
+        activeGames.get(chatId).foreach(_.game ! PoisonPill)
+        activeGames -= chatId
+        sendStartingPositionsPicture(snapshot, chatId)
+        sendMessage(SendMessage(chatId, s"The game ended in a draw"))
       case MoveAction(chatId, user, direction) =>
         activeGames.get(chatId) match {
           case Some(game) => game.game ! Move(user, direction)
+          case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
+        }
+
+      case ShootAction(chatId, user, direction) =>
+        activeGames.get(chatId) match {
+          case Some(game) => game.game ! Shoot(user, direction)
           case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
         }
     }
@@ -167,6 +192,7 @@ object Bot extends App with LazyLogging {
   }
 
   case class Move(user: User, direction: Direction)
+  case class Shoot(user: User, direction: Direction)
 
   class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
     var game: Game = _
@@ -181,22 +207,33 @@ object Bot extends App with LazyLogging {
     override def receive: Receive = {
       case Move(user, direction) =>
         val message: Option[String] = game.move(user.id, direction) match {
-          case NotYourTurn => "Sorry, not your turn".some
-          case NewCell(items) =>
+          case None => "Sorry, not your turn".some
+          case Some(NewCell(items)) =>
             if (items isEmpty) "You moved to empty cell ".some
             else ("You found following items: " + items.map {
               case Exit => "Exit"
               case Chest => "Chest"
             }.mkString(",")).some
-          case Wall => "Sorry dude, there is a wall".some
-          case Win(playerId) =>
+          case Some(Wall) => "Sorry dude, there is a wall".some
+          case Some(Win(playerId)) =>
             sender() ! WinGame(chatId, startingPositionsSnapshot, players(playerId))
+            none
+        }
+        for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
+      case Shoot(user, direction) =>
+        val message: Option[String] = game.shoot(user.id, direction) match {
+          case None => "Sorry, not your turn".some
+          case Some(Injured(playerIds)) =>
+            val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
+            s"Injured players: $injuredUsersNicks".some
+          case Some(GameOver) =>
+            sender() ! Draw(chatId, startingPositionsSnapshot)
             none
         }
         for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
     }
 
-    def nextUser = players(game.checkCurrentPlayer)
+    def nextUser = players(game.checkCurrentPlayer.id)
 
     def nextUserPrompt = s"Your turn @${nextUser.username}"
   }

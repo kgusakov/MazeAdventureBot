@@ -1,11 +1,13 @@
 package com.maze.game
 
 import com.maze.game.Directions.Direction
+import com.maze.game.ShootResults.{GameOver, Injured, Miss, ShootResult}
 import com.maze.game.Items.{Chest, Exit, Item}
-import com.maze.game.Results._
+import com.maze.game.MovementResults._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
+import scalaz.Scalaz._
 import scala.collection.immutable.SortedSet
 
 object Directions {
@@ -16,24 +18,68 @@ object Directions {
   case object Right extends Direction
 }
 
-object Results {
-  sealed trait Result
-  case object Wall extends Result
-  case class Win(playerId: Int) extends Result
-  case class NewCell(items: Set[Item]) extends Result
-  case object NotYourTurn extends Result
+object MovementResults {
+  sealed trait MovementResult
+  case object Wall extends MovementResult
+  case class Win(playerId: Int) extends MovementResult
+  case class NewCell(items: Set[Item]) extends MovementResult
+}
+
+object ShootResults {
+  sealed trait ShootResult
+  case class Injured(playerId: Set[Int]) extends ShootResult
+  object GameOver extends ShootResult
+  case object Miss extends ShootResult
 }
 
 case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
 
-  def move(playerId: Int, direction: Direction): Result = {
+  def shoot(playerId: Int, direction: Direction): Option[ShootResult] = {
+    if (currentPlayer.id == playerId) {
+      val curPlayer = currentPlayer
+      logger.debug(s"Player ${player(playerId)} is shooting to $direction")
+      currentPlayer = nextPlayer
+      if (curPlayer.hasAmmo) {
+        curPlayer.shoot()
+        val bulletStoppedPosition = scanObstacles(players - curPlayer, maze.cells, curPlayer.position, direction)
+        bulletStoppedPosition match {
+          case pos: Position if (players - curPlayer).exists(p => p.position == pos) =>
+            val injuredPlayers = (players - curPlayer).filter(p => p.position == pos)
+            injuredPlayers.foreach(_.injure())
+            injuredPlayers.find(_.hasChest) match {
+              case Some(p) =>
+                p.dropChest()
+                maze.cells(pos.y)(pos.x).addChest()
+              case None =>
+            }
+            if (players.forall(_.isInjured)) GameOver.some
+            else Injured(injuredPlayers.map(_.id)).some
+          case _ => Miss.some
+        }
+      } else {
+        Miss.some
+      }
+    }
+    else none
+  }
+
+  def scanObstacles(players: Set[Player], cells: Array[Array[Cell]], position: Position, direction: Direction): Position = {
+    import Game._
+    val currentCell = cells(position.y)(position.x)
+    if (currentCell.?|(direction) || players.exists(_.position == position)) position
+    else {
+      scanObstacles(players, cells, step(position, direction), direction)
+    }
+  }
+
+  def move(playerId: Int, direction: Direction): Option[MovementResult] = {
     import Game.direction2wall
 
-    if (currentPlayer == playerId) {
+    if (currentPlayer.id == playerId) {
       currentPlayer = nextPlayer
       logger.debug(s"Player ${player(playerId)} is moving to $direction")
       val pos = player(playerId).position
-      if (maze.cells(pos.y)(pos.x) ?| direction) Wall
+      if (maze.cells(pos.y)(pos.x) ?| direction) Some(Wall)
       else {
         direction match {
           case Directions.Up => pos.y -= 1
@@ -43,16 +89,20 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
         }
         maze.cells(pos.y)(pos.x) match {
           case cell if (cell.item contains Exit) && player(playerId).hasChest =>
-            Win(playerId)
+            Win(playerId).some
           case cell if cell.item contains Chest =>
-            player(playerId).hasChest = true
-            cell removeChest()
-            NewCell(cell.item.toSet + Chest)
-          case cell => NewCell(cell.item.toSet)
+            if (player(playerId).isInjured) {
+              NewCell(cell.item.toSet).some
+            } else {
+              player(playerId).takeChest()
+              cell removeChest()
+              NewCell(cell.item.toSet + Chest).some
+            }
+          case cell => NewCell(cell.item.toSet).some
         }
       }
     }
-    else NotYourTurn
+    else none
   }
 
   def checkCurrentPlayer = currentPlayer
@@ -63,17 +113,16 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
         players.map(p => p.copy(position = p.position.copy())))
   }
 
-  private def nextPlayer: Int = {
-    val playersSeq = players.map(_.id).toSeq
-    val nextIndex = playersSeq.indexOf(currentPlayer) + 1
-    if (nextIndex == playersSeq.length) playersSeq.head
-    else playersSeq(nextIndex)
+  private def nextPlayer = {
+    val nextIndex = sortedPlayers.indexOf(currentPlayer) + 1
+    if (nextIndex == players.size) sortedPlayers.head
+    else sortedPlayers(nextIndex)
   }
 
   private def player(id: Int) = players.find(_.id == id).get
 
-  private val sortedPlayers = SortedSet.empty[Player] ++ players
-  private var currentPlayer: Int = sortedPlayers.map(_.id).head
+  private val sortedPlayers = players.toSeq.sortBy(_.id)
+  private var currentPlayer = sortedPlayers.head
 
 }
 
@@ -86,6 +135,15 @@ object Game {
       case Directions.Down => Walls.Down
       case Directions.Left => Walls.Left
       case Directions.Right => Walls.Right
+    }
+  }
+
+  def step(position: Position, direction: Direction): Position = {
+    direction match {
+      case Directions.Left => position.copy(x = position.x - 1)
+      case Directions.Right => position.copy(x = position.x + 1)
+      case Directions.Down => position.copy(y = position.y + 1)
+      case Directions.Up => position.copy(y = position.y - 1)
     }
   }
 }
