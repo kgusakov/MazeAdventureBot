@@ -10,7 +10,7 @@ import com.maze.game._
 import com.maze.game.Directions.Direction
 import com.maze.game.Items.{Chest, Exit}
 import com.maze.game.MovementResults.{NewCell, Wall, Win}
-import com.maze.game.ShootResults.{GameOver, Injured}
+import com.maze.game.ShootResults.{GameOver, Injured, Miss}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.mutable
@@ -199,7 +199,7 @@ object Bot extends App with LazyLogging {
     var startingPositionsSnapshot: Game = _
 
     override def preStart(): Unit = {
-      game = Generator.generateGame(10, Random.nextGaussian() > 0.4, players.keySet)
+      game = Generator.generateGame(10, Random.nextGaussian() > 0.6, players.keySet)
       startingPositionsSnapshot = game.snapshot
       TelegramApiClient sendMessage SendMessage(chatId, nextUserPrompt)
     }
@@ -223,6 +223,8 @@ object Bot extends App with LazyLogging {
       case Shoot(user, direction) =>
         val message: Option[String] = game.shoot(user.id, direction) match {
           case None => "Sorry, not your turn".some
+          case Some(Miss) =>
+            s"You missed".some
           case Some(Injured(playerIds)) =>
             val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
             s"Injured players: $injuredUsersNicks".some

@@ -221,7 +221,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       And("chest should not disappear from cell")
       game.maze.cells(1)(1).item should be (Set(Chest))
     }
-    
+
     scenario("win after moving to exit with chest") {
       Given("game with two players where one player already has chest")
       val game = g(
