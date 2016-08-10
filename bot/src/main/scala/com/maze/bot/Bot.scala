@@ -8,9 +8,9 @@ import com.maze.bot.telegram.api.{Message, SendMessage, TelegramApiClient, User}
 import com.maze.bot.telegram.api.TelegramApiClient._
 import com.maze.game._
 import com.maze.game.Directions.Direction
-import com.maze.game.Items.{Chest, Exit}
+import com.maze.game.Items.{Armory, Chest, Exit, Hospital}
 import com.maze.game.MovementResults.{NewCell, Wall, Win}
-import com.maze.game.ShootResults.{GameOver, Injured, Miss}
+import com.maze.game.ShootResults.{Injured, Miss}
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.collection.mutable
@@ -104,8 +104,6 @@ object Bot extends App with LazyLogging {
 
   case class WinGame(chatId: Int, snapshot: Game, winner: User)
 
-  case class Draw(chatId: Int, snapshot: Game)
-
   case class PendingGame(chatId: Int, author: User, players: ArrayBuffer[User])
 
   case class ActiveGame(author: Int, game: ActorRef)
@@ -166,11 +164,6 @@ object Bot extends App with LazyLogging {
         activeGames -= chatId
         sendStartingPositionsPicture(snapshot, chatId)
         sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
-      case Draw(chatId, snapshot) =>
-        activeGames.get(chatId).foreach(_.game ! PoisonPill)
-        activeGames -= chatId
-        sendStartingPositionsPicture(snapshot, chatId)
-        sendMessage(SendMessage(chatId, s"The game ended in a draw"))
       case MoveAction(chatId, user, direction) =>
         activeGames.get(chatId) match {
           case Some(game) => game.game ! Move(user, direction)
@@ -208,12 +201,20 @@ object Bot extends App with LazyLogging {
       case Move(user, direction) =>
         val message: Option[String] = game.move(user.id, direction) match {
           case None => "Sorry, not your turn".some
-          case Some(NewCell(items)) =>
-            if (items isEmpty) "You moved to empty cell ".some
-            else ("You found following items: " + items.map {
-              case Exit => "Exit"
-              case Chest => "Chest"
-            }.mkString(",")).some
+          case Some(NewCell(walls, items)) =>
+            val wallsInfo =
+              if (walls.isEmpty) "You moved to cell without walls"
+              else "You moved to cell with following walls: " + walls.mkString(",")
+            val itemsInfo =
+              if (items.nonEmpty)
+                "\nYou found following items: " + items.map {
+                  case Exit => "Exit"
+                  case Chest => "Chest"
+                  case Armory => "Armory"
+                  case Hospital => "Hospital"
+                }.mkString(",")
+              else ""
+            (wallsInfo + itemsInfo).some
           case Some(Wall) => "Sorry dude, there is a wall".some
           case Some(Win(playerId)) =>
             sender() ! WinGame(chatId, startingPositionsSnapshot, players(playerId))
@@ -228,9 +229,6 @@ object Bot extends App with LazyLogging {
           case Some(Injured(playerIds)) =>
             val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
             s"Injured players: $injuredUsersNicks".some
-          case Some(GameOver) =>
-            sender() ! Draw(chatId, startingPositionsSnapshot)
-            none
         }
         for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
     }

@@ -1,14 +1,13 @@
 package com.maze.game
 
 import com.maze.game.Directions.Direction
-import com.maze.game.ShootResults.{GameOver, Injured, Miss, ShootResult}
+import com.maze.game.ShootResults.{Injured, Miss, ShootResult}
 import com.maze.game.Items._
 import com.maze.game.MovementResults._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
 import scalaz.Scalaz._
-import scala.collection.immutable.SortedSet
 
 object Directions {
   sealed trait Direction
@@ -22,13 +21,12 @@ object MovementResults {
   sealed trait MovementResult
   case object Wall extends MovementResult
   case class Win(playerId: Int) extends MovementResult
-  case class NewCell(items: Set[Item]) extends MovementResult
+  case class NewCell(walls: Set[Wall], items: Set[Item]) extends MovementResult
 }
 
 object ShootResults {
   sealed trait ShootResult
   case class Injured(playerId: Set[Int]) extends ShootResult
-  object GameOver extends ShootResult
   case object Miss extends ShootResult
 }
 
@@ -52,8 +50,7 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
                 maze.cells(pos.y)(pos.x).addChest()
               case None =>
             }
-            if (players.forall(_.isInjured)) GameOver
-            else Injured(injuredPlayers.map(_.id))
+            Injured(injuredPlayers.map(_.id))
           case _ => Miss
         }
       } else {
@@ -101,8 +98,8 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
           case c if (c has Chest) && (player(playerId) isHealthy) =>
             player(playerId).takeChest()
             cell removeChest()
-            NewCell(c.items.toSet + Chest)
-          case c => NewCell(c.items.toSet)
+            NewCell(c.walls.toSet, c.items.toSet + Chest)
+          case c => NewCell(c.walls.toSet, c.items.toSet)
         }
       }
     }.some

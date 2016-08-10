@@ -2,15 +2,18 @@ import com.maze.game.{MovementResults, _}
 import org.scalatest._
 import Matchers._
 import com.maze.game.Items.{Armory, Chest, Exit, Hospital}
-import com.maze.game.MovementResults.{MovementResult, NewCell}
-import com.maze.game.ShootResults.{GameOver, Injured}
+import com.maze.game.MovementResults.{NewCell}
+import com.maze.game.ShootResults.{Injured}
 import com.maze.game.Walls.{Down, Left, Right, Up}
 import utils.MazeDescriptionDSL._
+
+import OptionValues._
+import utils.CustomMatchers
 
 import scalaz.Scalaz._
 import scala.util.Random
 
-class GameTest extends FeatureSpec with GivenWhenThen {
+class GameTest extends FeatureSpec with GivenWhenThen with CustomMatchers {
 
   feature("game generation") {
     scenario("maze borders and item generation") {
@@ -49,7 +52,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       Then("he should become healed")
       player.isHealthy should be (true)
       And("result should be cell with hospital")
-      moveResult should contain (NewCell(Set(Hospital)))
+      moveResult.value should hasOnlyItem (Hospital)
     }
   }
 
@@ -70,7 +73,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       Then("he should receive ammo")
       player.hasAmmo should be (true)
       And("result should be cell with hospital")
-      moveResult should contain (NewCell(Set(Armory)))
+      moveResult.value should hasOnlyItem(Armory)
     }
   }
 
@@ -195,7 +198,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       When("move to empty cell")
       val movementResult = game.move(1, Directions.Right)
       Then("result should be new empty cell")
-      movementResult should contain (MovementResults.NewCell(Set.empty))
+      movementResult should contain (NewCell(Set(Up, Right), Set.empty))
     }
 
     scenario("movement to wall") {
@@ -222,7 +225,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       When("player 1 go to cell with chest")
       val movementResult = game.move(1, Directions.Right)
       Then("result should be new cell with chest")
-      movementResult should contain (MovementResults.NewCell(Set(Chest)))
+      movementResult.value should hasOnlyItem(Chest)
       And("player 1 should receive chest in his pocket")
       players(0).hasChest should be (true)
       And("player 2 should have no chest")
@@ -243,7 +246,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       When("player 1 go to cell with chest")
       val movementResult = game.move(1, Directions.Right)
       Then("result should be new cell with chest")
-      movementResult should contain (MovementResults.NewCell(Set(Chest)))
+      movementResult.value should hasOnlyItem(Chest)
       And("player 1 should not receive chest in his pocket")
       players(0).hasChest should be (false)
       And("chest should not disappear from cell")
@@ -273,7 +276,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       When("player without chest moving to exit")
       val movementResult = game.move(1, Directions.Right)
       Then("result should be the cell with exit")
-      movementResult should contain (MovementResults.NewCell(Set(Exit)))
+      movementResult.value should hasOnlyItem(Exit)
     }
   }
 }
