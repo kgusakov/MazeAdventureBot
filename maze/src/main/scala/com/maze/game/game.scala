@@ -2,7 +2,7 @@ package com.maze.game
 
 import com.maze.game.Directions.Direction
 import com.maze.game.ShootResults.{GameOver, Injured, Miss, ShootResult}
-import com.maze.game.Items.{Chest, Exit, Item}
+import com.maze.game.Items._
 import com.maze.game.MovementResults._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
@@ -39,7 +39,7 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
       val curPlayer = currentPlayer
       logger.debug(s"Player ${player(playerId)} is shooting to $direction")
       currentPlayer = nextPlayer
-      if (curPlayer.hasAmmo) {
+      if (curPlayer.hasAmmo && curPlayer.isHealthy) {
         curPlayer.shoot()
         val bulletStoppedPosition = scanObstacles(players - curPlayer, maze.cells, curPlayer.position, direction)
         bulletStoppedPosition match {
@@ -52,14 +52,14 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
                 maze.cells(pos.y)(pos.x).addChest()
               case None =>
             }
-            if (players.forall(_.isInjured)) GameOver.some
-            else Injured(injuredPlayers.map(_.id)).some
-          case _ => Miss.some
+            if (players.forall(_.isInjured)) GameOver
+            else Injured(injuredPlayers.map(_.id))
+          case _ => Miss
         }
       } else {
-        Miss.some
+        Miss
       }
-    }
+    }.some
     else none
   }
 
@@ -79,7 +79,7 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
       currentPlayer = nextPlayer
       logger.debug(s"Player ${player(playerId)} is moving to $direction")
       val pos = player(playerId).position
-      if (maze.cells(pos.y)(pos.x) ?| direction) Some(Wall)
+      if (maze.cells(pos.y)(pos.x) ?| direction) Wall
       else {
         direction match {
           case Directions.Up => pos.y -= 1
@@ -87,21 +87,25 @@ case class Game(maze: Maze, players: Set[Player]) extends LazyLogging {
           case Directions.Left => pos.x -= 1
           case Directions.Right => pos.x += 1
         }
-        maze.cells(pos.y)(pos.x) match {
-          case cell if (cell.item contains Exit) && player(playerId).hasChest =>
-            Win(playerId).some
-          case cell if cell.item contains Chest =>
-            if (player(playerId).isInjured) {
-              NewCell(cell.item.toSet).some
-            } else {
-              player(playerId).takeChest()
-              cell removeChest()
-              NewCell(cell.item.toSet + Chest).some
-            }
-          case cell => NewCell(cell.item.toSet).some
+
+        val cell = maze.cells(pos.y)(pos.x)
+        val preprocessChain: Seq[PartialFunction[Cell, Unit]] = Seq (
+          {case c if c has Hospital => player(playerId).heal()},
+          {case c if c has Armory => player(playerId).rearm()}
+        )
+        preprocessChain.filter(_.isDefinedAt(cell)).foreach(_(cell))
+
+        cell match {
+          case c if (c has Exit) && (player(playerId) hasChest) =>
+            Win(playerId)
+          case c if (c has Chest) && (player(playerId) isHealthy) =>
+            player(playerId).takeChest()
+            cell removeChest()
+            NewCell(c.items.toSet + Chest)
+          case c => NewCell(c.items.toSet)
         }
       }
-    }
+    }.some
     else none
   }
 

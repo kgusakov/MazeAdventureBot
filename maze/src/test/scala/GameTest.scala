@@ -1,8 +1,8 @@
 import com.maze.game.{MovementResults, _}
 import org.scalatest._
 import Matchers._
-import com.maze.game.Items.{Chest, Exit}
-import com.maze.game.MovementResults.MovementResult
+import com.maze.game.Items.{Armory, Chest, Exit, Hospital}
+import com.maze.game.MovementResults.{MovementResult, NewCell}
 import com.maze.game.ShootResults.{GameOver, Injured}
 import com.maze.game.Walls.{Down, Left, Right, Up}
 import utils.MazeDescriptionDSL._
@@ -19,16 +19,58 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       def wallChance = Random.nextGaussian() > 0.2
       When("generate some mazes")
       val mazes = for (i <- 0 to 1000) yield Generator.generateCells(10, Random.nextGaussian() > 0.2)
-      Then("all of them should have correct walls on borders, one chest and one exit")
+      Then("all of them should have correct walls on borders, one chest, one exit, one hospital and one armory")
       for (cells <- mazes) {
         cells.map(_.count(_.hasChest)).sum should be (1)
         cells.map(_.count(_.hasExit)).sum should be (1)
+        cells.map(_.count(_.items contains Hospital)).sum should be (1)
+        cells.map(_.count(_.items contains Armory)).sum should be (1)
 
         cells.head.forall(_ ?| Walls.Up) should be(true)
         cells.last.forall(_ ?| Walls.Down) should be(true)
         cells.map(_.head).forall(_ ?| Walls.Left) should be(true)
         cells.map(_.last).forall(_ ?| Walls.Right) should be(true)
       }
+    }
+  }
+
+  feature("hospital") {
+    scenario("injured player found the hospital") {
+      Given("game with 1 injured player")
+      val player = p(1, 0, 0, false, 1)
+      player injure()
+      player.isInjured should be (true)
+      val game = g(
+        r(c(Up, Left)(), c(Up, Right)(Hospital)),
+        r(c(Left, Down)(), c(Right, Down)(Exit))
+      )(player)
+      When("player go to hospital")
+      val moveResult = game.move(1, Directions.Right)
+      Then("he should become healed")
+      player.isHealthy should be (true)
+      And("result should be cell with hospital")
+      moveResult should contain (NewCell(Set(Hospital)))
+    }
+  }
+
+  feature("armory") {
+    scenario("player without ammo found the armory") {
+      Given("game with 1 player without ammo")
+      val player = p(1, 0, 0, false, 3)
+      player.shoot()
+      player.shoot()
+      player.shoot()
+      player.hasAmmo should be (false)
+      val game = g(
+        r(c(Up, Left)(), c(Up, Right)(Armory)),
+        r(c(Left, Down)(), c(Right, Down)(Exit))
+      )(player)
+      When("player go to hospital")
+      val moveResult = game.move(1, Directions.Right)
+      Then("he should receive ammo")
+      player.hasAmmo should be (true)
+      And("result should be cell with hospital")
+      moveResult should contain (NewCell(Set(Armory)))
     }
   }
 
@@ -71,31 +113,31 @@ class GameTest extends FeatureSpec with GivenWhenThen {
     }
 
     scenario("shooting in all 4 directions") {
-      Given("game with 4 players, which has ammo")
+      Given("game 2x2")
       val game = g(
         r(c(Up, Left)(),  c(Up, Right)()),
         r(c(Left, Down)(), c(Right, Down)(Exit))
-      )(p(1, 0, 0, false, 1), p(2, 1, 0, false, 1), p(3, 1, 1, false, 1), p(4, 0, 1, false, 1))
+      )_
 
-      When("player 1 shoots to right player 2")
-      val shootResult1 = game.shoot(1, Directions.Right)
+      When("left player shoots to right player")
+      val shootResult1 = game(Seq(p(1, 0, 0, false, 1), p(2, 1, 0, false, 1))).shoot(1, Directions.Right)
       Then("result should be wound of right player")
       shootResult1 should contain (Injured(Set(2)))
 
-      When("player 2 shoots to bottom player 3")
-      val shootResult2 = game.shoot(2, Directions.Down)
+      When("top player shoots to bottom player")
+      val shootResult2 = game(Seq(p(1, 0, 0, false, 1), p(2, 0, 1, false, 1))).shoot(1, Directions.Down)
       Then("result should be wound of bottom player")
-      shootResult2 should contain (Injured(Set(3)))
+      shootResult2 should contain (Injured(Set(2)))
 
-      When("player 3 shoots to left player 4")
-      val shootResult3 = game.shoot(3, Directions.Left)
+      When("right player shoots to left player")
+      val shootResult3 = game(Seq(p(1, 1, 0, false, 1), p(2, 0, 0, false, 1))).shoot(1, Directions.Left)
       Then("result should be wound of bottom player")
-      shootResult3 should contain (Injured(Set(4)))
+      shootResult3 should contain (Injured(Set(2)))
 
-      When("player 4 shoots to top player 1")
-      val shootResult4 = game.shoot(4, Directions.Up)
-      Then("result should be wound of top player 1")
-      shootResult4 should contain (GameOver)
+      When("bottom player shoots to top player 1")
+      val shootResult4 = game(Seq(p(1, 0, 1, false, 1), p(2, 0, 0, false, 1))).shoot(1, Directions.Up)
+      Then("result should be wound of top player")
+      shootResult4 should contain (Injured(Set(2)))
     }
 
     scenario("player with ammo shoots to another 2 players (in one cell)") {
@@ -123,23 +165,9 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       Then("result should be wound of 1 player")
       shootResult should contain (Injured(Set(2)))
       And("Injured player should drop chest")
-      game.maze.cells(0)(1).item.contains(Chest) should be (true)
+      game.maze.cells(0)(1).items.contains(Chest) should be (true)
       game.players.find(_.id == 2).get.hasChest should be (false)
 
-    }
-
-    scenario("game over when players injured") {
-      Given("game with 2 players, one already injured")
-      val players = List(p(1, 0, 0, false, 1), p(2, 1, 0, true, 1))
-      players.head.injure()
-      val game = g(
-        r(c(Up, Left)(), c(Up, Right)()),
-        r(c(Left, Down)(), c(Right, Down)(Exit))
-      )(players: _*)
-      When("injured player shoots to not injured player")
-      val shootResult = game.shoot(1, Directions.Right)
-      Then("result should be game over")
-      shootResult should contain (GameOver)
     }
   }
 
@@ -200,7 +228,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       And("player 2 should have no chest")
       players(1).hasChest should be (false)
       And("chest should disappear from cell")
-      game.maze.cells(1)(1).item should be (Set.empty)
+      game.maze.cells(1)(1).items should be (Set.empty)
     }
 
     scenario("taking the chest by injured player") {
@@ -219,7 +247,7 @@ class GameTest extends FeatureSpec with GivenWhenThen {
       And("player 1 should not receive chest in his pocket")
       players(0).hasChest should be (false)
       And("chest should not disappear from cell")
-      game.maze.cells(1)(1).item should be (Set(Chest))
+      game.maze.cells(1)(1).items should be (Set(Chest))
     }
 
     scenario("win after moving to exit with chest") {

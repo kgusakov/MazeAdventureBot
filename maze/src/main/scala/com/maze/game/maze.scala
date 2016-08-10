@@ -18,15 +18,21 @@ object Items {
   sealed trait Item
   object Exit extends Item
   object Chest extends Item
+  object Hospital extends Item
+  object Armory extends Item
 }
 
-case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[Item] = mutable.Set.empty) {
+case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, items: mutable.Set[Item] = mutable.Set.empty) {
 
-  def hasChest = item contains Chest
+  def hasChest = items contains Chest
 
-  def hasExit = item contains Exit
+  def hasExit = items contains Exit
 
-  def addChest() = item += Chest
+  def has(item: Item) = items contains item
+
+  def add(item: Item) = items += item
+
+  def addChest() = items += Chest
 
   def +|=(wall: Wall): Cell = {
     walls += wall
@@ -38,7 +44,7 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, item: mutable.Set[
   }
 
   def removeChest() = {
-    item -= Chest
+    items -= Chest
     this
   }
 }
@@ -48,20 +54,25 @@ case class Maze(cells: Array[Array[Cell]])
 case class Position(var x: Int, var y: Int)
 case class Player(id: Int, position: Position, withChest: Boolean = false, withAmmunition: Int = 3) {
   private var chest = withChest
+
+  private val maxAmmunition = withAmmunition
   private var ammunition = withAmmunition
   private var injured = false
-
   def hasChest = chest
+
   def takeChest() { chest = true }
   def dropChest() { chest = false }
   def hasAmmo = ammunition > 0
   def shoot() { if (hasAmmo) ammunition -= 1}
+  def rearm() =
+    ammunition = maxAmmunition
 
   def injure() {
     injured = true
   }
 
   def isInjured = injured
+  def isHealthy = !injured
 
   def heal() {
     injured = false

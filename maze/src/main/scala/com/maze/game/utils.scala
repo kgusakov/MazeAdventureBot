@@ -4,7 +4,7 @@ import java.awt.{Color, Graphics2D}
 import java.awt.image.BufferedImage
 import java.io.OutputStream
 
-import com.maze.game.Items.Exit
+import com.maze.game.Items._
 import com.maze.game.Walls.Wall
 import com.typesafe.scalalogging.LazyLogging
 
@@ -91,11 +91,18 @@ object Generator {
     }
 
     val edges = cells.head ++ cells.last ++ cells.map(_.head) ++ cells.map(_.last)
-    edges(Random.nextInt(edges.length)).item.add(Exit)
+    edges(Random.nextInt(edges.length)).items.add(Exit)
 
-    cells(Random.nextInt(cells.length))(Random.nextInt(cells.length)).addChest()
+    placeToRandomEmptyCell(cells, Chest)
+    placeToRandomEmptyCell(cells, Hospital)
+    placeToRandomEmptyCell(cells, Armory)
 
     cells
+  }
+
+  private def placeToRandomEmptyCell(cells: Array[Array[Cell]], item: Item): Unit = {
+    val emptyCells = cells.flatMap(_.filter(_.items isEmpty))
+    emptyCells(Random.nextInt(emptyCells.length)) add item
   }
 }
 
@@ -132,7 +139,7 @@ object Drawer extends LazyLogging {
   }
 
   def drawCell(gc: Graphics2D, position: (Int, Int), cell: Cell, cellSize: Int) {
-    if (cell.item.contains(Items.Exit)) {
+    if (cell.items.contains(Items.Exit)) {
       logger.debug("Exit drawing")
       gc.setColor(Color.RED)
       gc.fillRect(position._1 - cellSize / 2, position._2 - cellSize / 2, cellSize, cellSize)
