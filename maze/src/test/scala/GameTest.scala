@@ -102,6 +102,19 @@ class GameTest extends FeatureSpec with GivenWhenThen with CustomMatchers {
       shootResult should contain (ShootResults.Miss)
     }
 
+    scenario("injured player shoots to another player") {
+      Given("game with 2 injured players")
+      val game = g(
+        r(c(Up, Left)(), c(Up, Right)()),
+        r(c(Left, Down)(), c(Right, Down)(Exit))
+      )(p(1, 0, 0, false, 3), p(2, 1, 0, false, 3))
+      game.players.find(_.id == 1).foreach(_.injure())
+      When("injured player shoots to another player")
+      val shootResult = game.shoot(1, Directions.Right)
+      Then("result should be miss")
+      shootResult should contain (ShootResults.Miss)
+    }
+
     scenario("player shoots to another player through wall") {
       Given("game with 2 players")
       val game = g(
