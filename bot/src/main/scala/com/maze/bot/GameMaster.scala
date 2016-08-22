@@ -2,7 +2,7 @@ package com.maze.bot
 
 import akka.actor.Actor
 import com.maze.bot.GameRouter.WinGame
-import com.maze.bot.telegram.api.{SendMessage, TelegramApiClient, User}
+import com.maze.bot.telegram.api._
 import com.maze.game.Directions.Direction
 import com.maze.game.{Game, Generator}
 import com.maze.game.Items.{Armory, Chest, Exit, Hospital}
@@ -25,9 +25,9 @@ class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
   var startingPositionsSnapshot: Game = _
 
   override def preStart(): Unit = {
-    game = Generator.generateGame(10, Random.nextGaussian() > 0.6, players.keySet)
+    game = Generator.generateGame(10, Random.nextGaussian() > 0.4, players.keySet)
     startingPositionsSnapshot = game.snapshot
-    TelegramApiClient sendMessage SendMessage(chatId, nextUserPrompt)
+    promptNextUser()
   }
 
   override def receive: Receive = {
@@ -53,7 +53,7 @@ class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
           sender() ! WinGame(chatId, startingPositionsSnapshot, players(playerId))
           none
       }
-      for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
+      for (m <- message) promptNextUser(m.some)
     case Shoot(user, direction) =>
       val message: Option[String] = game.shoot(user.id, direction) match {
         case None => "Sorry, not your turn".some
@@ -63,10 +63,19 @@ class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
           val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
           s"Injured players: $injuredUsersNicks".some
       }
-      for (m <- message) TelegramApiClient sendMessage SendMessage(chatId, s"$m\n\n$nextUserPrompt")
+      for (m <- message) promptNextUser(m.some)
   }
 
   def nextUser = players(game.checkCurrentPlayer.id)
 
   def nextUserPrompt = s"Your turn @${nextUser.username}"
+
+  def promptNextUser(message: Option[String] = None): Unit = {
+    val keyboard = ReplyKeyboardMarkup(
+      Array(
+        Array(KeyboardButton("/up"), KeyboardButton("/down"), KeyboardButton("/left"), KeyboardButton("/right")),
+        Array(KeyboardButton("/shootup"), KeyboardButton("/shootdown"), KeyboardButton("/shootleft"), KeyboardButton("/shootright"))))
+    val text = message.fold("")(m => s"$m\n\n") + nextUserPrompt
+    TelegramApiClient sendMessage SendMessage(chatId, text, replyMarkup = Some(keyboard))
+  }
 }

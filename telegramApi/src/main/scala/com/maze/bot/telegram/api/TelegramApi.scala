@@ -14,6 +14,7 @@ import akka.util.ByteString
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.concurrent.Future
+import scala.util.{Failure, Success}
 
 case class Update(updateId: Int,
                   message: Message)
@@ -47,6 +48,18 @@ case class MessageEntity(`type`: String, offset: Long, length: Long)
 object MessageEntity {
   implicit def MessageEntityCodecJson: CodecJson[MessageEntity] =
     casecodec3(MessageEntity.apply, MessageEntity.unapply)("type", "offset", "length")
+}
+
+case class KeyboardButton(text: String)
+object KeyboardButton {
+  implicit def KeyboardButtonCodecJson: CodecJson[KeyboardButton] =
+    casecodec1(KeyboardButton.apply, KeyboardButton.unapply)("text")
+}
+
+case class ReplyKeyboardMarkup(keyboard: Array[Array[KeyboardButton]])
+object ReplyKeyboardMarkup {
+  implicit def ReplyKeyboardMarkupCodecJson: CodecJson[ReplyKeyboardMarkup] =
+    casecodec1(ReplyKeyboardMarkup.apply, ReplyKeyboardMarkup.unapply)("keyboard")
 }
 
 case class Message(messageId: Int, from: User, chat: Chat, date: Long, text: Option[String], entities: Option[List[MessageEntity]] = None) {
@@ -123,7 +136,7 @@ case class SendMessage(chatId: Int,
                        disableWebPagePreview: Option[Boolean] = None,
                        disableNotification: Option[Boolean] = None,
                        replyToMessageId: Option[Int] = None,
-                       replyMarkup: Option[String] = None)
+                       replyMarkup: Option[ReplyKeyboardMarkup] = None)
 object SendMessage {
   implicit def SendMessageCodecJson: EncodeJson[SendMessage] = EncodeJson{(m: SendMessage) =>
     ("chat_id" := m.chatId) ->:
