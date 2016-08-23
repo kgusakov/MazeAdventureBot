@@ -39,7 +39,7 @@ class MarshallingTest extends FunSuite with ScalaFutures {
   private val commandJson =
     """
       |{"ok":true,"result":[{"update_id":424915235,
-      |"message":{"message_id":19,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov"},"chat":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov","type":"private"},"date":1465130988,"text":"\/help me","entities":[{"type":"bot_command","offset":0,"length":5}]}}]}
+      |"message":{"message_id":19,"from":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov"},"chat":{"id":125504090,"first_name":"Kirill","last_name":"Gusakov","username":"kgusakov","type":"private"},"date":1465130988,"text":"\/help me","entities":[{"type":"bot_command","offset":0,"length":5}]}}]}
     """.stripMargin
 
   private val chatWithoutUserJson =
@@ -96,11 +96,11 @@ class MarshallingTest extends FunSuite with ScalaFutures {
     commandJson.decodeValidation[Response].toOption.get.result(0).message.entities.get.head.`type` should be ("bot_command")
   }
 
-  ignore ("getUpdates") {
-    whenReady(TelegramApiClient.getUpdates()) { results =>
-      results.get.size should be (2)
-    }
-  }
+//  ignore ("getUpdates") {
+//    whenReady(TelegramApiClient.getUpdates()) { results =>
+//      results.get.size should be (2)
+//    }
+//  }
 
   test ("chatWithoutUserJson") {
     import argonaut._, Argonaut._

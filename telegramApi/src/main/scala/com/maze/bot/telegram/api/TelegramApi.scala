@@ -111,21 +111,23 @@ object Chat {
 
 }
 
-case class User(id: Int, firstName: Option[String] = None, lastName: Option[String] = None, username: String)
+case class User(id: Int, firstName: String, lastName: Option[String] = None, username: Option[String] = None) {
+  lazy val mention = username.fold(firstName + lastName.fold("")(" " + _))("@"+_)
+}
 object User {
 
   implicit def UserCodecJson: CodecJson[User] = CodecJson (
     (user: User) =>
       ("id" := user.id) ->:
-        user.firstName.map("first_name" := _) ->?:
+        ("first_name" := user.firstName) ->:
         user.lastName.map("last_name" := _) ->?:
-        ("username" := user.username) ->:
+        user.username.map("username" := _) ->?:
         jEmptyObject,
     u => for {
       id <- (u --\ "id").as[Int]
-      firstName <- (u --\ "first_name").as[Option[String]]
+      firstName <- (u --\ "first_name").as[String]
       lastName <- (u --\ "last_name").as[Option[String]]
-      username <- (u --\ "username").as[String]
+      username <- (u --\ "username").as[Option[String]]
     } yield User(id, firstName, lastName, username)
   )
 }
@@ -149,10 +151,10 @@ object SendMessage {
   }
 }
 
-object TelegramApiClient extends LazyLogging {
+class TelegramApiClient(token: String) extends LazyLogging {
   import argonaut._, Argonaut._
 
-  private val baseUri = "https://api.telegram.org/bot180715621:AAFUc2sYIfo4FYww_01v3VGZXiB_WcPPL4k"
+  private val baseUri = s"https://api.telegram.org/bot$token"
   private val getUpdatesUri = s"$baseUri/getUpdates"
   private val sendMessageUri = s"$baseUri/sendMessage"
   private val sendPhotoUri = s"$baseUri/sendPhoto"

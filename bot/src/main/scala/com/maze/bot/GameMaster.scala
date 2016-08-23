@@ -17,7 +17,7 @@ object GameMaster {
   case class Shoot(user: User, direction: Direction)
 }
 
-class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
+class GameMaster(apiClient: TelegramApiClient, chatId: Int, players: Map[Int, User]) extends Actor {
 
   import GameMaster._
 
@@ -68,7 +68,7 @@ class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
 
   def nextUser = players(game.checkCurrentPlayer.id)
 
-  def nextUserPrompt = s"Your turn @${nextUser.username}"
+  def nextUserPrompt = s"Your turn ${nextUser.mention}"
 
   def promptNextUser(message: Option[String] = None): Unit = {
     val keyboard = ReplyKeyboardMarkup(
@@ -76,6 +76,6 @@ class GameMaster(chatId: Int, players: Map[Int, User]) extends Actor {
         Array(KeyboardButton("/up"), KeyboardButton("/down"), KeyboardButton("/left"), KeyboardButton("/right")),
         Array(KeyboardButton("/shootup"), KeyboardButton("/shootdown"), KeyboardButton("/shootleft"), KeyboardButton("/shootright"))))
     val text = message.fold("")(m => s"$m\n\n") + nextUserPrompt
-    TelegramApiClient sendMessage SendMessage(chatId, text, replyMarkup = Some(keyboard))
+    apiClient sendMessage SendMessage(chatId, text, replyMarkup = Some(keyboard))
   }
 }

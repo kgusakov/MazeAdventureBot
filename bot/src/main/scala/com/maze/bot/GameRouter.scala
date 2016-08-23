@@ -4,15 +4,14 @@ import java.io.ByteArrayOutputStream
 
 import akka.actor.{Actor, ActorLogging, ActorRef, PoisonPill, Props}
 import com.maze.bot.GameMaster.{Move, Shoot}
-import com.maze.bot.telegram.api.{SendMessage, User}
-import com.maze.bot.telegram.api.TelegramApiClient._
+import com.maze.bot.telegram.api.{SendMessage, TelegramApiClient, User}
 import com.maze.game.Directions.Direction
 import com.maze.game.{Drawer, Game}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
-class GameRouter extends Actor with ActorLogging {
+class GameRouter(apiClient: TelegramApiClient) extends Actor with ActorLogging {
 
   import GameRouter._
   import resource._
@@ -23,34 +22,34 @@ class GameRouter extends Actor with ActorLogging {
   override def receive: Receive = {
     case NewGame(chatId, user) =>
       if ((pendingGames contains chatId) || (activeGames contains chatId))
-        sendMessage(SendMessage(chatId, "This chat already have one game"))
+        apiClient.sendMessage(SendMessage(chatId, "This chat already have one game"))
       else {
         pendingGames += chatId -> PendingGame(chatId, user, ArrayBuffer(user))
-        sendMessage(SendMessage(chatId, "Game successfully created, waiting for players"))
+        apiClient.sendMessage(SendMessage(chatId, "Game successfully created, waiting for players"))
       }
     case JoinGame(chatId, user) =>
       if (pendingGames contains chatId) {
         pendingGames(chatId).players += user
-        sendMessage(SendMessage(chatId, "Welcome to game! Waiting for other players"))
+        apiClient.sendMessage(SendMessage(chatId, "Welcome to game! Waiting for other players"))
       } else if (activeGames contains chatId) {
-        sendMessage(SendMessage(chatId, "Game already started, sorry"))
+        apiClient.sendMessage(SendMessage(chatId, "Game already started, sorry"))
       } else
-        sendMessage(SendMessage(chatId, "There are no any games to join in current chat"))
+        apiClient.sendMessage(SendMessage(chatId, "There are no any games to join in current chat"))
     case StartGame(chatId, user) =>
       if (pendingGames contains chatId) {
         if (user == pendingGames(chatId).author) {
-          sendMessage(SendMessage(chatId, "Game started, let it bleed!"))
+          apiClient.sendMessage(SendMessage(chatId, "Game started, let it bleed!"))
           activeGames += chatId -> {
             val game = pendingGames(chatId)
             ActiveGame(user.id, context.system.actorOf(Props(
-              new GameMaster(chatId, game.players.map(p => p.id -> p).toMap))))
+              new GameMaster(apiClient, chatId, game.players.map(p => p.id -> p).toMap))))
           }
         } else {
-          sendMessage(SendMessage(chatId, "Only creator of the game can start it"))
+          apiClient.sendMessage(SendMessage(chatId, "Only creator of the game can start it"))
         }
       }
       else
-        sendMessage(SendMessage(chatId, "There are no pending games to start"))
+        apiClient.sendMessage(SendMessage(chatId, "There are no pending games to start"))
     case EndGame(chatId, userId) =>
       if ((pendingGames contains chatId) || (activeGames contains chatId))
         if (pendingGames.get(chatId).fold(false)(_.author == userId) ||
@@ -60,32 +59,32 @@ class GameRouter extends Actor with ActorLogging {
           }
           activeGames -= chatId
           pendingGames -= chatId
-          sendMessage(SendMessage(chatId, "Game finished"))
+          apiClient.sendMessage(SendMessage(chatId, "Game finished"))
         } else {
-          sendMessage(SendMessage(chatId, "Only author of the game can finish it"))
+          apiClient.sendMessage(SendMessage(chatId, "Only author of the game can finish it"))
         }
     case WinGame(chatId, snapshot, winner) =>
       activeGames.get(chatId).foreach(_.game ! PoisonPill)
       activeGames -= chatId
       sendStartingPositionsPicture(snapshot, chatId)
-      sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
+      apiClient.sendMessage(SendMessage(chatId, s"We have a winner: @${winner.username}"))
     case MoveAction(chatId, user, direction) =>
       activeGames.get(chatId) match {
         case Some(game) => game.game ! Move(user, direction)
-        case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
+        case None => apiClient.sendMessage(SendMessage(chatId, "There is no games in this chat"))
       }
 
     case ShootAction(chatId, user, direction) =>
       activeGames.get(chatId) match {
         case Some(game) => game.game ! Shoot(user, direction)
-        case None => sendMessage(SendMessage(chatId, "There is no games in this chat"))
+        case None => apiClient.sendMessage(SendMessage(chatId, "There is no games in this chat"))
       }
   }
 
   private def sendStartingPositionsPicture(snapshot: Game, chatId: Int) =
     for (output <- managed(new ByteArrayOutputStream())) {
       Drawer.drawGame(snapshot, output)
-      sendPhoto(chatId, output.toByteArray)
+      apiClient.sendPhoto(chatId, output.toByteArray)
     }
 }
 

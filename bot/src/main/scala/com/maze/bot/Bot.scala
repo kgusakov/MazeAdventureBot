@@ -14,10 +14,11 @@ import GameRouter._
 object Bot extends App with LazyLogging {
 
   private val updateIdProp: String = "update_id"
+  val apiClient = new TelegramApiClient(args(0))
   var updateId = PropsStore.properties.getProperty(updateIdProp, "0").toInt
 
   val actorSystem = ActorSystem()
-  val gameManager = actorSystem.actorOf(Props[GameRouter])
+  val gameManager = actorSystem.actorOf(Props(new GameRouter(apiClient)))
 
   import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -43,7 +44,7 @@ object Bot extends App with LazyLogging {
 
   while (true) {
     try {
-      Await.result(TelegramApiClient.getUpdates(updateId), 5 minute) match {
+      Await.result(apiClient.getUpdates(updateId), 5 minute) match {
         case Some(updates) => {
           updates.filter(_.message.isCommand).foreach { update =>
             logger.info("Received update: " + update)
@@ -62,7 +63,7 @@ object Bot extends App with LazyLogging {
                 toShoot(text).foreach(d => gameManager ! ShootAction(chat.id, from, d))
               case message@Message(_, _, chat, _, _, _) =>
                 logger.warn(message.toString)
-                TelegramApiClient.sendMessage(SendMessage(chat.id, "Wrong command"))
+                apiClient.sendMessage(SendMessage(chat.id, "Wrong command"))
             }
           }
           val nextUpdateId = updates.map(_.updateId).fold(0)((a, b) => math.max(a, b))
