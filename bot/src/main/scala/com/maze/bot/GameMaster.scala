@@ -1,7 +1,6 @@
 package com.maze.bot
 
-import akka.actor.Actor
-import com.maze.bot.GameRouter.WinGame
+import com.maze.bot.GameMaster.WinGame
 import com.maze.bot.telegram.api._
 import com.maze.game.Directions.Direction
 import com.maze.game.{Game, Generator}
@@ -13,69 +12,66 @@ import scala.util.Random
 import scalaz.Scalaz._
 
 object GameMaster {
-  case class Move(user: User, direction: Direction)
-  case class Shoot(user: User, direction: Direction)
+  case class WinGame(snapshot: Game, winner: User)
 }
 
-class GameMaster(apiClient: TelegramApiClient, chatId: Int, players: Map[Int, User]) extends Actor {
-
-  import GameMaster._
+case class GameMaster(chatId: Int, players: Map[Int, User]) {
 
   var game: Game = _
   var startingPositionsSnapshot: Game = _
 
-  override def preStart(): Unit = {
+  def start: SendMessage = {
     game = Generator.generateGame(10, Random.nextGaussian() > 0.4, players.keySet)
     startingPositionsSnapshot = game.snapshot
     promptNextUser()
   }
 
-  override def receive: Receive = {
-    case Move(user, direction) =>
-      val message: Option[String] = game.move(user.id, direction) match {
-        case None => "Sorry, not your turn".some
-        case Some(NewCell(walls, items)) =>
-          val wallsInfo =
-            if (walls.isEmpty) "You moved to cell without walls"
-            else "You moved to cell with following walls: " + walls.mkString(",")
-          val itemsInfo =
-            if (items.nonEmpty)
-              "\nYou found following items: " + items.map {
-                case Exit => "Exit"
-                case Chest => "Chest"
-                case Armory => "Armory"
-                case Hospital => "Hospital"
-              }.mkString(",")
-            else ""
-          (wallsInfo + itemsInfo).some
-        case Some(Wall) => "Sorry dude, there is a wall".some
-        case Some(Win(playerId)) =>
-          sender() ! WinGame(chatId, startingPositionsSnapshot, players(playerId))
-          none
-      }
-      for (m <- message) promptNextUser(m.some)
-    case Shoot(user, direction) =>
-      val message: Option[String] = game.shoot(user.id, direction) match {
-        case None => "Sorry, not your turn".some
-        case Some(Miss) =>
-          s"You missed".some
-        case Some(Injured(playerIds)) =>
-          val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
-          s"Injured players: $injuredUsersNicks".some
-      }
-      for (m <- message) promptNextUser(m.some)
+  def move(user: User, direction: Direction): Either[WinGame, SendMessage] = {
+    val moveResult = game.move(user.id, direction) match {
+      case None => Right("Sorry, not your turn")
+      case Some(NewCell(walls, items)) =>
+        val wallsInfo =
+          if (walls.isEmpty) "You moved to cell without walls"
+          else "You moved to cell with following walls: " + walls.mkString(",")
+        val itemsInfo =
+          if (items.nonEmpty)
+            "\nYou found following items: " + items.map {
+              case Exit => "Exit"
+              case Chest => "Chest"
+              case Armory => "Armory"
+              case Hospital => "Hospital"
+            }.mkString(",")
+          else ""
+        Right(wallsInfo + itemsInfo)
+      case Some(Wall) => Right("Sorry dude, there is a wall")
+      case Some(Win(playerId)) =>
+        Left(WinGame(startingPositionsSnapshot, players(playerId)))
+    }
+    moveResult.right.map(message => promptNextUser(message.some))
   }
 
-  def nextUser = players(game.checkCurrentPlayer.id)
+  def shoot(user: User, direction: Direction): SendMessage = {
+    val shootResult = game.shoot(user.id, direction) match {
+      case None => "Sorry, not your turn"
+      case Some(Miss) =>
+        s"You missed"
+      case Some(Injured(playerIds)) =>
+        val injuredUsersNicks = players.filter(elem => playerIds.contains(elem._1)).values.map("@" + _.username).mkString(",")
+        s"Injured players: $injuredUsersNicks"
+    }
+    promptNextUser(shootResult.some)
+  }
 
-  def nextUserPrompt = s"Your turn ${nextUser.mention}"
+  private def nextUser = players(game.checkCurrentPlayer.id)
 
-  def promptNextUser(message: Option[String] = None): Unit = {
+  private def nextUserPrompt = s"Your turn ${nextUser.mention}"
+
+  private def promptNextUser(message: Option[String] = None): SendMessage = {
     val keyboard = ReplyKeyboardMarkup(
       Array(
         Array(KeyboardButton("/up"), KeyboardButton("/down"), KeyboardButton("/left"), KeyboardButton("/right")),
         Array(KeyboardButton("/shootup"), KeyboardButton("/shootdown"), KeyboardButton("/shootleft"), KeyboardButton("/shootright"))))
     val text = message.fold("")(m => s"$m\n\n") + nextUserPrompt
-    apiClient sendMessage SendMessage(chatId, text, replyMarkup = Some(keyboard))
+    SendMessage(chatId, text, replyMarkup = Some(keyboard))
   }
 }
