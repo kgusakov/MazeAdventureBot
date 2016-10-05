@@ -62,7 +62,7 @@ object Bot extends App with LazyLogging {
                 toShoot(text).foreach(d => gameManager ! ShootAction(chat.id, from, d))
               case message@Message(_, _, chat, _, _, _) =>
                 logger.warn(message.toString)
-                apiClient.sendMessage(SendMessage(chat.id, "Wrong command"))
+                messageSender ! SendMessage(chat.id, "Wrong command")
             }
           }
           val nextUpdateId = updates.map(_.updateId).fold(0)((a, b) => math.max(a, b))
