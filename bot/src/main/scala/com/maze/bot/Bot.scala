@@ -18,9 +18,8 @@ object Bot extends App with LazyLogging {
   var updateId = PropsStore.properties.getProperty(updateIdProp, "0").toInt
 
   val actorSystem = ActorSystem()
-  val gameManager = actorSystem.actorOf(Props(new GameRouter(apiClient)))
-
-  import scala.concurrent.ExecutionContext.Implicits.global
+  val messageSender = actorSystem.actorOf(Props(new MessageSender(apiClient)))
+  val gameManager = actorSystem.actorOf(Props(new GameRouter(messageSender)))
 
   def toMove(input: String): Option[Direction] = {
       input.split("@")(0) match {

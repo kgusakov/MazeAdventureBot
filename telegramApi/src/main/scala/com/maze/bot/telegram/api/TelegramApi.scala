@@ -132,6 +132,22 @@ object User {
   )
 }
 
+case class SendPhoto(chatId: Int, photo: Array[Byte]) {
+
+  def toEntity() = {
+    Multipart.FormData(
+      BodyPart.Strict (
+        "chat_id",
+        HttpEntity.Strict(ContentType(MediaTypes.`text/plain`, HttpCharsets.`UTF-8`), ByteString(chatId.toString))
+      ),
+      BodyPart(
+        "photo",
+        HttpEntity(ContentType(MediaTypes.`image/png`), photo), Map("filename" -> "sample.png"))
+    ).toEntity()
+  }
+
+}
+
 case class SendMessage(chatId: Int,
                        text: String,
                        parseMode: Option[String] = None,
@@ -190,20 +206,11 @@ class TelegramApiClient(token: String) extends LazyLogging {
     ))
   }
 
-  def sendPhoto(chatId: Int, photo: Array[Byte]): Future[HttpResponse] = {
-    val entity = Multipart.FormData(
-      BodyPart.Strict (
-        "chat_id",
-        HttpEntity.Strict(ContentType(MediaTypes.`text/plain`, HttpCharsets.`UTF-8`), ByteString(chatId.toString))
-      ),
-      BodyPart(
-        "photo",
-        HttpEntity(ContentType(MediaTypes.`image/png`), photo), Map("filename" -> "sample.png"))
-    ).toEntity()
+  def sendPhoto(sendPhoto: SendPhoto): Future[HttpResponse] = {
     http.singleRequest(HttpRequest(
       method = HttpMethods.POST,
       uri = sendPhotoUri,
-      entity = entity
+      entity = sendPhoto.toEntity()
     ))
   }
 }
