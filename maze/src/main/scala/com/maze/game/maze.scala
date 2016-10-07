@@ -7,7 +7,7 @@ import scala.collection.mutable
 import scala.math.Ordering
 
 object Walls {
-  sealed trait Wall
+  sealed trait Wall extends Serializable
   case object Up extends Wall
   case object Down extends Wall
   case object Left extends Wall
@@ -15,14 +15,14 @@ object Walls {
 }
 
 object Items {
-  sealed trait Item
+  sealed trait Item extends Serializable
   object Exit extends Item
   object Chest extends Item
   object Hospital extends Item
   object Armory extends Item
 }
 
-case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, items: mutable.Set[Item] = mutable.Set.empty) {
+case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, items: mutable.Set[Item] = mutable.Set.empty) extends Serializable {
 
   def hasChest = items contains Chest
 
@@ -49,10 +49,10 @@ case class Cell(walls: mutable.Set[Wall] = mutable.Set.empty, items: mutable.Set
   }
 }
 
-case class Maze(cells: Array[Array[Cell]])
+case class Maze(cells: Array[Array[Cell]]) extends Serializable
 
-case class Position(var x: Int, var y: Int)
-case class Player(id: Int, position: Position, withChest: Boolean = false, withAmmunition: Int = 3) {
+case class Position(var x: Int, var y: Int) extends Serializable
+case class Player(id: Int, position: Position, withChest: Boolean = false, withAmmunition: Int = 3) extends Serializable {
   private var chest = withChest
 
   private val maxAmmunition = withAmmunition
@@ -79,7 +79,7 @@ case class Player(id: Int, position: Position, withChest: Boolean = false, withA
   }
 }
 
-object Player {
+object Player extends Serializable {
   trait PlayerOrdering extends Ordering[Player] {
     def compare(x: Player, y: Player) = x.id.compare(y.id)
   }

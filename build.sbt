@@ -21,7 +21,10 @@ lazy val telegramApi = (project in file("telegramApi")).
 lazy val bot = (project in file("bot")).
   settings(Commons.settings: _*).
   settings(libraryDependencies ++= Seq(
-    "com.jsuereth" %% "scala-arm" % "1.4"
+    "com.jsuereth" %% "scala-arm" % "1.4",
+    "com.typesafe.akka" %% "akka-persistence" % akkaVersion,
+    "org.iq80.leveldb" % "leveldb" % "0.7",
+    "org.fusesource.leveldbjni" % "leveldbjni-all" % "1.8"
   )).
   dependsOn(maze, telegramApi)
 
