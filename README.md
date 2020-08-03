@@ -17,5 +17,7 @@ sbt assembly
 java -jar bot/target/scala-2.11/bot-assembly-1.0.jar <your_bot_key>
 ```
 
+Note: current version of bot is working only in non-supergroup chats
+
 ## Contributors
 - [@AlexeyNikolaev](https://github.com/AlexeyNikolaev) - the author of maze generator algorithm
