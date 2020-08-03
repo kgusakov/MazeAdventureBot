@@ -4,4 +4,4 @@
 A telegram bot, which implements simple version of https://en.wikipedia.org/wiki/Labyrinth_(paper-and-pencil_game)
 
 ## Contributors
-- @AlexeyNikolaev - the author of maze generator algorithm
+- [@AlexeyNikolaev](https://github.com/AlexeyNikolaev) - the author of maze generator algorithm
